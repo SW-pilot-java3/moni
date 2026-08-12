@@ -139,3 +139,7 @@ $RECYCLE.BIN/
 
 ### OMC ###
 **/.omc/
+
+### Environment ###
+.env
+*.env
