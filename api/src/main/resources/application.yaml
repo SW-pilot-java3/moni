@@ -2,10 +2,14 @@ spring:
   application:
     name: api
 
+  config:
+    import:
+      - optional:file:api/.env[.properties]
+
   datasource:
     url: jdbc:mysql://localhost:3306/moni?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:root}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
