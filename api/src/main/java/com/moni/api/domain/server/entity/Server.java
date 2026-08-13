@@ -53,6 +53,15 @@ public class Server extends BaseTimeEntity {
         this.status = status != null ? status : ServerStatus.DISCONNECTED;
     }
 
+    public void updateServerInfo(String name, Integer port) {
+        if (name != null && !name.isBlank()) {
+            this.name = name;
+        }
+        if (port != null) {
+            this.port = port;
+        }
+    }
+
     public void updateStatus(ServerStatus status) {
         this.status = status;
     }
