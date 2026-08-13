@@ -15,7 +15,6 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,8 +23,6 @@ import lombok.NoArgsConstructor;
 @Table(name = "servers")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
-@Builder
 public class Server extends BaseTimeEntity {
 
     @Id
@@ -44,10 +41,17 @@ public class Server extends BaseTimeEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    @Builder.Default
-    private ServerStatus status = ServerStatus.DISCONNECTED;
+    private ServerStatus status;
 
     private LocalDateTime lastReceivedAt;
+
+    @Builder
+    public Server(Instance instance, String name, Integer port, ServerStatus status) {
+        this.instance = instance;
+        this.name = name;
+        this.port = port;
+        this.status = status != null ? status : ServerStatus.DISCONNECTED;
+    }
 
     public void updateStatus(ServerStatus status) {
         this.status = status;
