@@ -11,6 +11,7 @@ import com.moni.api.domain.instance.exception.InstanceErrorCode;
 import com.moni.api.domain.instance.service.InstanceService;
 import com.moni.api.domain.server.dto.request.ServerCreateRequest;
 import com.moni.api.domain.server.dto.request.ServerUpdateRequest;
+import com.moni.api.domain.server.dto.response.ServerDeleteResponse;
 import com.moni.api.domain.server.dto.response.ServerResponse;
 import com.moni.api.domain.server.entity.Server;
 import com.moni.api.domain.server.entity.ServerStatus;
@@ -135,6 +136,40 @@ class ServerServiceTest {
 
         // when & then
         assertThatThrownBy(() -> serverService.updateServer(serverId, updateRequest))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ServerErrorCode.SERVER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("서버 삭제 성공")
+    void deleteServer_success() {
+        // given
+        Long serverId = 100L;
+        Server mockServer = Mockito.mock(Server.class);
+
+        given(serverRepository.findById(serverId)).willReturn(Optional.of(mockServer));
+
+        // when
+        ServerDeleteResponse response = serverService.deleteServer(serverId);
+
+        // then
+        assertThat(response).isNotNull();
+        assertThat(response.getDeletedServerId()).isEqualTo(serverId);
+
+        verify(serverRepository).findById(serverId);
+        verify(serverRepository).delete(mockServer);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 서버 삭제 시 예외 발생")
+    void deleteServer_serverNotFound_throwsException() {
+        // given
+        Long serverId = 999L;
+
+        given(serverRepository.findById(serverId)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> serverService.deleteServer(serverId))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ServerErrorCode.SERVER_NOT_FOUND);
     }
