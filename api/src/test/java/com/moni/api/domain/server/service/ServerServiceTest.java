@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import com.moni.api.domain.instance.entity.Instance;
+import com.moni.api.domain.instance.exception.InstanceErrorCode;
 import com.moni.api.domain.instance.service.InstanceService;
 import com.moni.api.domain.server.dto.request.ServerCreateRequest;
 import com.moni.api.domain.server.dto.response.ServerResponse;
@@ -80,11 +81,11 @@ class ServerServiceTest {
         ServerCreateRequest request = new ServerCreateRequest(instanceId, "User-Service", 8080);
 
         given(instanceService.getInstanceById(instanceId))
-                .willThrow(new CustomException(ErrorCode.INSTANCE_NOT_FOUND));
+                .willThrow(new CustomException(InstanceErrorCode.INSTANCE_NOT_FOUND));
 
         // when & then
         assertThatThrownBy(() -> serverService.createServer(request))
                 .isInstanceOf(CustomException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INSTANCE_NOT_FOUND);
+                .hasFieldOrPropertyWithValue("errorCode", InstanceErrorCode.INSTANCE_NOT_FOUND);
     }
 }

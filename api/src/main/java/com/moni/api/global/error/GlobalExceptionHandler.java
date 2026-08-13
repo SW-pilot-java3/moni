@@ -24,15 +24,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ConstraintViolationException.class)
     protected ResponseEntity<ErrorResponse> handleConstraintViolationException(ConstraintViolationException e) {
-        return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getStatus())
-                .body(ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE, e.getMessage()));
+        return ResponseEntity.status(CommonErrorCode.INVALID_INPUT_VALUE.getStatus())
+                .body(ErrorResponse.of(CommonErrorCode.INVALID_INPUT_VALUE, e.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)
     protected ResponseEntity<ErrorResponse> handleException(Exception e) {
         logger.error("Unhandled exception occurred", e);
-        return ResponseEntity.status(ErrorCode.INTERNAL_SERVER_ERROR.getStatus())
-                .body(ErrorResponse.of(ErrorCode.INTERNAL_SERVER_ERROR));
+        return ResponseEntity.status(CommonErrorCode.INTERNAL_SERVER_ERROR.getStatus())
+                .body(ErrorResponse.of(CommonErrorCode.INTERNAL_SERVER_ERROR));
     }
 
     @Override
@@ -41,8 +41,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             HttpHeaders headers,
             HttpStatusCode status,
             WebRequest request) {
-        ErrorResponse errorResponse = ErrorResponse.of(ErrorCode.INVALID_INPUT_VALUE, ex.getBindingResult());
-        return ResponseEntity.status(ErrorCode.INVALID_INPUT_VALUE.getStatus()).body(errorResponse);
+        ErrorResponse errorResponse = ErrorResponse.of(CommonErrorCode.INVALID_INPUT_VALUE, ex.getBindingResult());
+        return ResponseEntity.status(CommonErrorCode.INVALID_INPUT_VALUE.getStatus()).body(errorResponse);
     }
 
     @Override
@@ -51,7 +51,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             HttpHeaders headers,
             HttpStatusCode status,
             WebRequest request) {
-        return ResponseEntity.status(ErrorCode.METHOD_NOT_ALLOWED.getStatus())
-                .body(ErrorResponse.of(ErrorCode.METHOD_NOT_ALLOWED));
+        return ResponseEntity.status(CommonErrorCode.METHOD_NOT_ALLOWED.getStatus())
+                .body(ErrorResponse.of(CommonErrorCode.METHOD_NOT_ALLOWED));
     }
 }
