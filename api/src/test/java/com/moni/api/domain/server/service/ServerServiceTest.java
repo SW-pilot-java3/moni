@@ -10,12 +10,14 @@ import com.moni.api.domain.instance.entity.Instance;
 import com.moni.api.domain.instance.exception.InstanceErrorCode;
 import com.moni.api.domain.instance.service.InstanceService;
 import com.moni.api.domain.server.dto.request.ServerCreateRequest;
+import com.moni.api.domain.server.dto.request.ServerUpdateRequest;
 import com.moni.api.domain.server.dto.response.ServerResponse;
 import com.moni.api.domain.server.entity.Server;
 import com.moni.api.domain.server.entity.ServerStatus;
+import com.moni.api.domain.server.exception.ServerErrorCode;
 import com.moni.api.domain.server.repository.ServerRepository;
-import com.moni.api.global.error.ErrorCode;
 import com.moni.api.global.error.exception.CustomException;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -87,5 +89,53 @@ class ServerServiceTest {
         assertThatThrownBy(() -> serverService.createServer(request))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", InstanceErrorCode.INSTANCE_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("서버 정보 수정 성공")
+    void updateServer_success() {
+        // given
+        Long serverId = 100L;
+        Long instanceId = 10L;
+        Instance mockInstance = Mockito.mock(Instance.class);
+        given(mockInstance.getId()).willReturn(instanceId);
+
+        Server existingServer = Server.builder()
+                .instance(mockInstance)
+                .name("User-Service")
+                .port(8080)
+                .status(ServerStatus.CONNECTED)
+                .build();
+        ReflectionTestUtils.setField(existingServer, "id", serverId);
+
+        ServerUpdateRequest updateRequest = new ServerUpdateRequest("User-Service-Core", 8081);
+
+        given(serverRepository.findById(serverId)).willReturn(Optional.of(existingServer));
+
+        // when
+        ServerResponse response = serverService.updateServer(serverId, updateRequest);
+
+        // then
+        assertThat(response).isNotNull();
+        assertThat(response.getServerId()).isEqualTo(serverId);
+        assertThat(response.getName()).isEqualTo("User-Service-Core");
+        assertThat(response.getPort()).isEqualTo(8081);
+
+        verify(serverRepository).findById(serverId);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 서버 정보 수정 시 예외 발생")
+    void updateServer_serverNotFound_throwsException() {
+        // given
+        Long serverId = 999L;
+        ServerUpdateRequest updateRequest = new ServerUpdateRequest("User-Service-Core", 8081);
+
+        given(serverRepository.findById(serverId)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> serverService.updateServer(serverId, updateRequest))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ServerErrorCode.SERVER_NOT_FOUND);
     }
 }
