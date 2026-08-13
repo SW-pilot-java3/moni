@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class ServerService {
+public class    ServerService {
 
     private final ServerRepository serverRepository;
     private final InstanceService instanceService;
