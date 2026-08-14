@@ -4,18 +4,22 @@ import com.moni.api.domain.server.dto.request.ServerCreateRequest;
 import com.moni.api.domain.server.dto.request.ServerUpdateRequest;
 import com.moni.api.domain.server.dto.response.ServerDeleteResponse;
 import com.moni.api.domain.server.dto.response.ServerResponse;
+import com.moni.api.domain.server.dto.response.ServerSummaryResponse;
 import com.moni.api.domain.server.service.ServerService;
 import com.moni.api.global.response.ApiResponse;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -24,6 +28,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class ServerController {
 
     private final ServerService serverService;
+
+    @GetMapping("/metrics/summary")
+    public ResponseEntity<ApiResponse<List<ServerSummaryResponse>>> getServerSummaryList(
+            @RequestParam Long instanceId) {
+        List<ServerSummaryResponse> response = serverService.getServerSummaryList(instanceId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
 
     @PostMapping
     public ResponseEntity<ApiResponse<ServerResponse>> createServer(
