@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import com.moni.api.domain.instance.entity.Instance;
 import com.moni.api.domain.server.dto.request.ServerThresholdItemRequest;
 import com.moni.api.domain.server.dto.request.ServerThresholdsPatchRequest;
+import com.moni.api.domain.server.dto.response.ServerThresholdResponse;
 import com.moni.api.domain.server.dto.response.ServerThresholdUpdateResponse;
 import com.moni.api.domain.server.entity.Server;
 import com.moni.api.domain.server.entity.ServerMetricKey;
@@ -37,6 +38,61 @@ class ServerThresholdServiceTest {
 
     @Mock
     private ServerThresholdRepository serverThresholdRepository;
+
+    @Test
+    @DisplayName("서버 임계치 목록 조회 성공")
+    void getThresholds_success() {
+        // given
+        Long serverId = 1L;
+        Instance mockInstance = Mockito.mock(Instance.class);
+        Server server = Server.builder()
+                .instance(mockInstance)
+                .name("payment-api")
+                .port(8081)
+                .build();
+        ReflectionTestUtils.setField(server, "id", serverId);
+
+        ServerThreshold threshold1 = ServerThreshold.builder()
+                .server(server)
+                .metricKey(ServerMetricKey.JVM_HEAP_USAGE)
+                .warningValue(80.0)
+                .criticalValue(90.0)
+                .build();
+
+        ServerThreshold threshold2 = ServerThreshold.builder()
+                .server(server)
+                .metricKey(ServerMetricKey.HTTP_AVG_LATENCY)
+                .warningValue(300.0)
+                .criticalValue(800.0)
+                .build();
+
+        given(serverRepository.existsById(serverId)).willReturn(true);
+        given(serverThresholdRepository.findByServerId(serverId)).willReturn(List.of(threshold1, threshold2));
+
+        // when
+        List<ServerThresholdResponse> response = serverThresholdService.getThresholds(serverId);
+
+        // then
+        assertThat(response).hasSize(2);
+        assertThat(response.get(0).getMetricKey()).isEqualTo(ServerMetricKey.JVM_HEAP_USAGE);
+        assertThat(response.get(0).getIsCustomized()).isFalse();
+        assertThat(response.get(1).getMetricKey()).isEqualTo(ServerMetricKey.HTTP_AVG_LATENCY);
+        assertThat(response.get(1).getIsCustomized()).isTrue();
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 서버 임계치 목록 조회 시 예외 발생")
+    void getThresholds_serverNotFound_throwsException() {
+        // given
+        Long serverId = 999L;
+
+        given(serverRepository.existsById(serverId)).willReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> serverThresholdService.getThresholds(serverId))
+                .isInstanceOf(CustomException.class)
+                .hasMessage(ServerErrorCode.SERVER_NOT_FOUND.getMessage());
+    }
 
     @Test
     @DisplayName("서버 임계치 수정 성공")
