@@ -9,12 +9,16 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/servers")
@@ -36,6 +40,24 @@ public class ServerController {
             @PathVariable Long serverId,
             @Valid @RequestBody ServerUpdateRequest request) {
         ServerResponse response = serverService.updateServer(serverId, request);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    // --- [본인이 작성한 조회 컨트롤러] ---
+
+    // 1. 특정 서버 상세 조회 GET /api/v1/servers/{serverId}
+    @GetMapping("/{serverId}")
+    public ResponseEntity<ApiResponse<ServerResponse>> getServerDetail(
+            @PathVariable Long serverId) {
+        ServerResponse response = serverService.getServerDetail(serverId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    // 2. 특정 인스턴스 내 서버 목록 조회 GET /api/v1/servers?instanceId=1
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<ServerResponse>>> getServerList(
+            @RequestParam Long instanceId) {
+        List<ServerResponse> response = serverService.getServerList(instanceId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
