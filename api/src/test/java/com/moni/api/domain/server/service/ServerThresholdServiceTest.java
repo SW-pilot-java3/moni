@@ -110,12 +110,6 @@ class ServerThresholdServiceTest {
     void updateThresholds_invalidThresholdValue_throwsException() {
         // given
         Long serverId = 1L;
-        Instance mockInstance = Mockito.mock(Instance.class);
-        Server server = Server.builder()
-                .instance(mockInstance)
-                .name("payment-api")
-                .port(8081)
-                .build();
 
         ServerThresholdsPatchRequest patchRequest = ServerThresholdsPatchRequest.builder()
                 .thresholds(List.of(ServerThresholdItemRequest.builder()
