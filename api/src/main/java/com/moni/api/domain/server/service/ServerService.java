@@ -19,6 +19,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -73,5 +75,21 @@ public class ServerService {
 
         serverRepository.delete(server);
         return ServerDeleteResponse.from(serverId);
+    }
+
+
+    public ServerResponse getServerDetail(Long serverId) {
+        Server server = serverRepository.findById(serverId)
+                .orElseThrow(() -> new CustomException(ServerErrorCode.SERVER_NOT_FOUND));
+        return ServerResponse.from(server);
+    }
+
+
+    public List<ServerResponse> getServerList(Long instanceId) {
+        instanceService.getInstanceById(instanceId);
+        List<Server> servers = serverRepository.findByInstanceId(instanceId);
+        return servers.stream()
+                .map(ServerResponse::from)
+                .toList();
     }
 }
