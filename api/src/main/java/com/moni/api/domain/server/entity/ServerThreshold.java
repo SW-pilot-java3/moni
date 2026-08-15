@@ -18,9 +18,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
-
 @Entity
 @Table(
     name = "server_thresholds",
@@ -38,7 +35,6 @@ public class ServerThreshold extends BaseTimeEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "server_id", nullable = false)
-    @OnDelete(action = OnDeleteAction.CASCADE)
     private Server server;
 
     @Enumerated(EnumType.STRING)
