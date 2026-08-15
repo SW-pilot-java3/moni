@@ -4,7 +4,6 @@ import com.moni.api.domain.server.dto.request.ServerThresholdItemRequest;
 import com.moni.api.domain.server.dto.request.ServerThresholdsPatchRequest;
 import com.moni.api.domain.server.dto.response.ServerThresholdResponse;
 import com.moni.api.domain.server.dto.response.ServerThresholdUpdateResponse;
-import com.moni.api.domain.server.entity.Server;
 import com.moni.api.domain.server.entity.ServerThreshold;
 import com.moni.api.domain.server.exception.ServerErrorCode;
 import com.moni.api.domain.server.repository.ServerRepository;
@@ -37,8 +36,9 @@ public class ServerThresholdService {
 
     @Transactional
     public ServerThresholdUpdateResponse updateThresholds(Long serverId, ServerThresholdsPatchRequest request) {
-        Server server = serverRepository.findById(serverId)
-                .orElseThrow(() -> new CustomException(ServerErrorCode.SERVER_NOT_FOUND));
+        if (!serverRepository.existsById(serverId)) {
+            throw new CustomException(ServerErrorCode.SERVER_NOT_FOUND);
+        }
 
         int updatedCount = request.getThresholds().size();
 
@@ -49,18 +49,9 @@ public class ServerThresholdService {
 
             ServerThreshold threshold = serverThresholdRepository
                     .findByServerIdAndMetricKey(serverId, item.getMetricKey())
-                    .orElseGet(() -> ServerThreshold.builder()
-                            .server(server)
-                            .metricKey(item.getMetricKey())
-                            .warningValue(item.getWarningValue())
-                            .criticalValue(item.getCriticalValue())
-                            .build());
+                    .orElseThrow(() -> new CustomException(ServerErrorCode.SERVER_THRESHOLD_NOT_FOUND));
 
-            if (threshold.getId() != null) {
-                threshold.updateThreshold(item.getWarningValue(), item.getCriticalValue());
-            } else {
-                serverThresholdRepository.save(threshold);
-            }
+            threshold.updateThreshold(item.getWarningValue(), item.getCriticalValue());
         }
 
         return ServerThresholdUpdateResponse.of(serverId, updatedCount, LocalDateTime.now());
