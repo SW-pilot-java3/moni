@@ -1,11 +1,15 @@
 package com.moni.api.domain.server.controller;
 
 import com.moni.api.domain.server.dto.request.ServerCreateRequest;
+import com.moni.api.domain.server.dto.request.ServerThresholdsPatchRequest;
 import com.moni.api.domain.server.dto.request.ServerUpdateRequest;
 import com.moni.api.domain.server.dto.response.ServerDeleteResponse;
 import com.moni.api.domain.server.dto.response.ServerResponse;
+import com.moni.api.domain.server.dto.response.ServerThresholdResponse;
+import com.moni.api.domain.server.dto.response.ServerThresholdUpdateResponse;
 import com.moni.api.domain.server.dto.response.ServerSummaryResponse;
 import com.moni.api.domain.server.service.ServerService;
+import com.moni.api.domain.server.service.ServerThresholdService;
 import com.moni.api.global.response.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -21,12 +25,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import com.moni.api.domain.server.dto.request.ServerThresholdsPatchRequest;
-import com.moni.api.domain.server.dto.response.ServerThresholdUpdateResponse;
-import com.moni.api.domain.server.service.ServerThresholdService;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/servers")
@@ -66,6 +64,13 @@ public class ServerController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @GetMapping("/{serverId}/thresholds")
+    public ResponseEntity<ApiResponse<List<ServerThresholdResponse>>> getThresholds(
+            @PathVariable Long serverId) {
+        List<ServerThresholdResponse> response = serverThresholdService.getThresholds(serverId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     @PatchMapping("/{serverId}/thresholds")
     public ResponseEntity<ApiResponse<ServerThresholdUpdateResponse>> updateThresholds(
             @PathVariable Long serverId,
@@ -80,7 +85,6 @@ public class ServerController {
         ServerResponse response = serverService.getServerDetail(serverId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
-
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<ServerResponse>>> getServerList(
