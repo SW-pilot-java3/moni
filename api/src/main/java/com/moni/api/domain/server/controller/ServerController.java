@@ -22,12 +22,19 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.moni.api.domain.server.dto.request.ServerThresholdsPatchRequest;
+import com.moni.api.domain.server.dto.response.ServerThresholdUpdateResponse;
+import com.moni.api.domain.server.service.ServerThresholdService;
+
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/servers")
 @RequiredArgsConstructor
 public class ServerController {
 
     private final ServerService serverService;
+    private final ServerThresholdService serverThresholdService;
 
     @GetMapping("/metrics/summary")
     public ResponseEntity<ApiResponse<List<ServerSummaryResponse>>> getServerSummaryList(
@@ -56,6 +63,29 @@ public class ServerController {
     public ResponseEntity<ApiResponse<ServerDeleteResponse>> deleteServer(
             @PathVariable Long serverId) {
         ServerDeleteResponse response = serverService.deleteServer(serverId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PatchMapping("/{serverId}/thresholds")
+    public ResponseEntity<ApiResponse<ServerThresholdUpdateResponse>> updateThresholds(
+            @PathVariable Long serverId,
+            @Valid @RequestBody ServerThresholdsPatchRequest request) {
+        ServerThresholdUpdateResponse response = serverThresholdService.updateThresholds(serverId, request);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{serverId}")
+    public ResponseEntity<ApiResponse<ServerResponse>> getServerDetail(
+            @PathVariable Long serverId) {
+        ServerResponse response = serverService.getServerDetail(serverId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<ServerResponse>>> getServerList(
+            @RequestParam Long instanceId) {
+        List<ServerResponse> response = serverService.getServerList(instanceId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

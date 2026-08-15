@@ -26,7 +26,9 @@ import com.moni.api.domain.stat.repository.StatHikariCpRepository;
 import com.moni.api.domain.stat.repository.StatHttpRepository;
 import com.moni.api.domain.stat.repository.StatJvmRepository;
 import com.moni.api.domain.stat.repository.StatThreadPoolRepository;
+import com.moni.api.domain.server.repository.ServerThresholdRepository;
 import com.moni.api.global.error.exception.CustomException;
+
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -62,6 +64,9 @@ class ServerServiceTest {
     @Mock
     private StatThreadPoolRepository statThreadPoolRepository;
 
+    @Mock
+    private ServerThresholdRepository serverThresholdRepository;
+
     @Test
     @DisplayName("인스턴스 하위 서버 통계 요약 목록 조회 성공")
     void getServerSummaryList_success() {
@@ -69,16 +74,20 @@ class ServerServiceTest {
         Long instanceId = 10L;
         Instance mockInstance = Mockito.mock(Instance.class);
 
-        Server server1 = Server.builder().instance(mockInstance).name("order-api").port(8080).status(ServerStatus.CONNECTED).build();
+        Server server1 = Server.builder().instance(mockInstance).name("order-api").port(8080)
+                .status(ServerStatus.CONNECTED).build();
         ReflectionTestUtils.setField(server1, "id", 100L);
 
-        Server server2 = Server.builder().instance(mockInstance).name("payment-api").port(8081).status(ServerStatus.CONNECTED).build();
+        Server server2 = Server.builder().instance(mockInstance).name("payment-api").port(8081)
+                .status(ServerStatus.CONNECTED).build();
         ReflectionTestUtils.setField(server2, "id", 101L);
 
         StatJvm statJvm = StatJvm.builder().heapUsedAvg(1200L * 1024 * 1024).heapUsedMax(2048L * 1024 * 1024).build();
         StatHttp statHttp = StatHttp.builder().rpsAvg(128.5).avgResTimeMs(32.0).errorRateAvg(0.08).build();
-        StatHikariCp statHikari = StatHikariCp.builder().activePoolAvg(6.0).activePoolMax(10).pendingThreadsMax(0).build();
-        StatThreadPool statPool = StatThreadPool.builder().activeThreadsAvg(4.0).maxThreadsAvg(10.0).queuedTasksMax(2).build();
+        StatHikariCp statHikari = StatHikariCp.builder().activePoolAvg(6.0).activePoolMax(10).pendingThreadsMax(0)
+                .build();
+        StatThreadPool statPool = StatThreadPool.builder().activeThreadsAvg(4.0).maxThreadsAvg(10.0).queuedTasksMax(2)
+                .build();
 
         given(instanceService.getInstanceById(instanceId)).willReturn(mockInstance);
         given(serverRepository.findByInstanceId(instanceId)).willReturn(List.of(server1, server2));
@@ -132,7 +141,7 @@ class ServerServiceTest {
     }
 
     @Test
-    @DisplayName("신규 서버 등록 성공")
+    @DisplayName("신규 서버 등록 성공 (기본 임계치 7개 자동 초기화)")
     void createServer_success() {
         // given
         Long instanceId = 10L;
@@ -165,6 +174,7 @@ class ServerServiceTest {
 
         verify(instanceService).getInstanceById(instanceId);
         verify(serverRepository).save(any(Server.class));
+        verify(serverThresholdRepository).saveAll(any());
     }
 
     @Test
