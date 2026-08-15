@@ -69,7 +69,7 @@ class ServerThresholdServiceTest {
                 .thresholds(List.of(itemRequest))
                 .build();
 
-        given(serverRepository.findById(serverId)).willReturn(Optional.of(server));
+        given(serverRepository.existsById(serverId)).willReturn(true);
         given(serverThresholdRepository.findByServerIdAndMetricKey(serverId, ServerMetricKey.HTTP_AVG_LATENCY))
                 .willReturn(Optional.of(existingThreshold));
 
@@ -85,7 +85,7 @@ class ServerThresholdServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 서버 임계치 수정 시 예외 발생")
+    @DisplayName("존재하지 않는 서버 ID로 요청 시 SERVER_NOT_FOUND 예외 발생")
     void updateThresholds_serverNotFound_throwsException() {
         // given
         Long serverId = 999L;
@@ -97,7 +97,7 @@ class ServerThresholdServiceTest {
                         .build()))
                 .build();
 
-        given(serverRepository.findById(serverId)).willReturn(Optional.empty());
+        given(serverRepository.existsById(serverId)).willReturn(false);
 
         // when & then
         assertThatThrownBy(() -> serverThresholdService.updateThresholds(serverId, patchRequest))
@@ -106,7 +106,7 @@ class ServerThresholdServiceTest {
     }
 
     @Test
-    @DisplayName("경고 임계값이 심각 임계값 이상인 경우 예외 발생")
+    @DisplayName("경고 임계값이 심각 임계값 이상인 경우 INVALID_THRESHOLD_VALUE 예외 발생")
     void updateThresholds_invalidThresholdValue_throwsException() {
         // given
         Long serverId = 1L;
@@ -125,11 +125,34 @@ class ServerThresholdServiceTest {
                         .build()))
                 .build();
 
-        given(serverRepository.findById(serverId)).willReturn(Optional.of(server));
+        given(serverRepository.existsById(serverId)).willReturn(true);
 
         // when & then
         assertThatThrownBy(() -> serverThresholdService.updateThresholds(serverId, patchRequest))
                 .isInstanceOf(CustomException.class)
                 .hasMessage(ServerErrorCode.INVALID_THRESHOLD_VALUE.getMessage());
+    }
+
+    @Test
+    @DisplayName("해당 지표의 임계치 설정이 없을 경우 SERVER_THRESHOLD_NOT_FOUND 예외 발생")
+    void updateThresholds_thresholdNotFound_throwsServerThresholdNotFoundException() {
+        // given
+        Long serverId = 1L;
+        ServerThresholdsPatchRequest patchRequest = ServerThresholdsPatchRequest.builder()
+                .thresholds(List.of(ServerThresholdItemRequest.builder()
+                        .metricKey(ServerMetricKey.HTTP_AVG_LATENCY)
+                        .warningValue(300.0)
+                        .criticalValue(800.0)
+                        .build()))
+                .build();
+
+        given(serverRepository.existsById(serverId)).willReturn(true);
+        given(serverThresholdRepository.findByServerIdAndMetricKey(serverId, ServerMetricKey.HTTP_AVG_LATENCY))
+                .willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> serverThresholdService.updateThresholds(serverId, patchRequest))
+                .isInstanceOf(CustomException.class)
+                .hasMessage(ServerErrorCode.SERVER_THRESHOLD_NOT_FOUND.getMessage());
     }
 }
