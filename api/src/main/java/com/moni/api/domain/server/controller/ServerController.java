@@ -1,12 +1,17 @@
 package com.moni.api.domain.server.controller;
 
 import com.moni.api.domain.server.dto.request.ServerCreateRequest;
+import com.moni.api.domain.server.dto.request.ServerThresholdsPatchRequest;
 import com.moni.api.domain.server.dto.request.ServerUpdateRequest;
 import com.moni.api.domain.server.dto.response.ServerDeleteResponse;
 import com.moni.api.domain.server.dto.response.ServerResponse;
+import com.moni.api.domain.server.dto.response.ServerThresholdResponse;
+import com.moni.api.domain.server.dto.response.ServerThresholdUpdateResponse;
 import com.moni.api.domain.server.service.ServerService;
+import com.moni.api.domain.server.service.ServerThresholdService;
 import com.moni.api.global.response.ApiResponse;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -54,6 +59,13 @@ public class ServerController {
     public ResponseEntity<ApiResponse<ServerDeleteResponse>> deleteServer(
             @PathVariable Long serverId) {
         ServerDeleteResponse response = serverService.deleteServer(serverId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{serverId}/thresholds")
+    public ResponseEntity<ApiResponse<List<ServerThresholdResponse>>> getThresholds(
+            @PathVariable Long serverId) {
+        List<ServerThresholdResponse> response = serverThresholdService.getThresholds(serverId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
