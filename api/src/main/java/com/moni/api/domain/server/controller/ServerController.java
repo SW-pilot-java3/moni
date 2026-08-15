@@ -20,6 +20,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.moni.api.domain.server.dto.request.ServerThresholdsPatchRequest;
+import com.moni.api.domain.server.dto.response.ServerThresholdUpdateResponse;
+import com.moni.api.domain.server.service.ServerThresholdService;
+
 import java.util.List;
 
 @RestController
@@ -28,6 +32,7 @@ import java.util.List;
 public class ServerController {
 
     private final ServerService serverService;
+    private final ServerThresholdService serverThresholdService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<ServerResponse>> createServer(
@@ -49,6 +54,14 @@ public class ServerController {
     public ResponseEntity<ApiResponse<ServerDeleteResponse>> deleteServer(
             @PathVariable Long serverId) {
         ServerDeleteResponse response = serverService.deleteServer(serverId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PatchMapping("/{serverId}/thresholds")
+    public ResponseEntity<ApiResponse<ServerThresholdUpdateResponse>> updateThresholds(
+            @PathVariable Long serverId,
+            @Valid @RequestBody ServerThresholdsPatchRequest request) {
+        ServerThresholdUpdateResponse response = serverThresholdService.updateThresholds(serverId, request);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

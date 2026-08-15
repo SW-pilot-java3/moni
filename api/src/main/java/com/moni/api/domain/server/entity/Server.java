@@ -2,6 +2,7 @@ package com.moni.api.domain.server.entity;
 
 import com.moni.api.domain.instance.entity.Instance;
 import com.moni.api.global.entity.BaseTimeEntity;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -12,8 +13,11 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -44,6 +48,9 @@ public class Server extends BaseTimeEntity {
     private ServerStatus status;
 
     private LocalDateTime lastReceivedAt;
+
+    @OneToMany(mappedBy = "server", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ServerThreshold> thresholds = new ArrayList<>();
 
     @Builder
     public Server(Instance instance, String name, Integer port, ServerStatus status) {

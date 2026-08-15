@@ -17,6 +17,7 @@ import com.moni.api.domain.server.entity.Server;
 import com.moni.api.domain.server.entity.ServerStatus;
 import com.moni.api.domain.server.exception.ServerErrorCode;
 import com.moni.api.domain.server.repository.ServerRepository;
+import com.moni.api.domain.server.repository.ServerThresholdRepository;
 import com.moni.api.global.error.exception.CustomException;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -40,8 +41,11 @@ class ServerServiceTest {
     @Mock
     private InstanceService instanceService;
 
+    @Mock
+    private ServerThresholdRepository serverThresholdRepository;
+
     @Test
-    @DisplayName("신규 서버 등록 성공")
+    @DisplayName("신규 서버 등록 성공 (기본 임계치 7개 자동 초기화)")
     void createServer_success() {
         // given
         Long instanceId = 10L;
@@ -74,6 +78,7 @@ class ServerServiceTest {
 
         verify(instanceService).getInstanceById(instanceId);
         verify(serverRepository).save(any(Server.class));
+        verify(serverThresholdRepository).saveAll(any());
     }
 
     @Test
