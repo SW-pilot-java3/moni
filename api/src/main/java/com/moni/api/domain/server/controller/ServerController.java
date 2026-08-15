@@ -52,9 +52,6 @@ public class ServerController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    // --- [본인이 작성한 조회 컨트롤러] ---
-
-    // 1. 특정 서버 상세 조회 GET /api/v1/servers/{serverId}
     @GetMapping("/{serverId}")
     public ResponseEntity<ApiResponse<ServerResponse>> getServerDetail(
             @PathVariable Long serverId) {
@@ -62,7 +59,7 @@ public class ServerController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    // 2. 특정 인스턴스 내 서버 목록 조회 GET /api/v1/servers?instanceId=1
+
     @GetMapping
     public ResponseEntity<ApiResponse<List<ServerResponse>>> getServerList(
             @RequestParam Long instanceId) {

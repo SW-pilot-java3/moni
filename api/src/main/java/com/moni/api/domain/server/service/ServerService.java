@@ -56,17 +56,16 @@ public class ServerService {
         return ServerDeleteResponse.from(serverId);
     }
 
-    // --- [본인이 작성한 조회 로직] ---
 
-    // 1. 특정 서버 상세 조회
     public ServerResponse getServerDetail(Long serverId) {
         Server server = serverRepository.findById(serverId)
                 .orElseThrow(() -> new CustomException(ServerErrorCode.SERVER_NOT_FOUND));
         return ServerResponse.from(server);
     }
 
-    // 2. 특정 인스턴스 내 서버 목록 조회
+
     public List<ServerResponse> getServerList(Long instanceId) {
+        instanceService.getInstanceById(instanceId);
         List<Server> servers = serverRepository.findByInstanceId(instanceId);
         return servers.stream()
                 .map(ServerResponse::from)
