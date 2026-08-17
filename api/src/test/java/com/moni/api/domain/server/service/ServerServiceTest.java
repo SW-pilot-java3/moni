@@ -82,7 +82,12 @@ class ServerServiceTest {
                 .status(ServerStatus.CONNECTED).build();
         ReflectionTestUtils.setField(server2, "id", 101L);
 
-        StatJvm statJvm = StatJvm.builder().heapUsedAvg(1200L * 1024 * 1024).heapUsedMax(2048L * 1024 * 1024).build();
+        StatJvm statJvm = StatJvm.builder()
+                .heapUsedAvg(1200L * 1024 * 1024)
+                .heapUsedMax(2048L * 1024 * 1024)
+                .gcPauseCountSum(5L)
+                .gcPauseSecondsSum(0.25)
+                .build();
         StatHttp statHttp = StatHttp.builder().rpsAvg(128.5).avgResTimeMs(32.0).errorRateAvg(0.08).build();
         StatHikariCp statHikari = StatHikariCp.builder().activePoolAvg(6.0).activePoolMax(10).pendingThreadsMax(0)
                 .build();
@@ -112,8 +117,11 @@ class ServerServiceTest {
         assertThat(response.get(0).getServerId()).isEqualTo(100L);
         assertThat(response.get(0).getName()).isEqualTo("order-api");
         assertThat(response.get(0).getJvm().getHeapUsedMB()).isEqualTo(1200L);
+        assertThat(response.get(0).getJvm().getHeapUsedMaxMB()).isEqualTo(2048L);
+        assertThat(response.get(0).getJvm().getAvgGcPauseMs()).isEqualTo(50.0);
         assertThat(response.get(0).getHttp().getRps()).isEqualTo(128.5);
         assertThat(response.get(0).getHikaricp().getActive()).isEqualTo(6);
+        assertThat(response.get(0).getHikaricp().getActiveMax()).isEqualTo(10);
         assertThat(response.get(0).getExecutors().getQueuedTasks()).isEqualTo(2);
 
         // 2번 서버: Stat 비어있는 경우 빈 DTO 검증

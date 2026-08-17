@@ -28,8 +28,8 @@ public class ServerSummaryResponse {
     @Builder
     public static class JvmSummary {
         private Long heapUsedMB;
-        private Long heapMaxMB;
-        private Double gcOverheadPct;
+        private Long heapUsedMaxMB;
+        private Double avgGcPauseMs;
     }
 
     @Getter
@@ -44,7 +44,7 @@ public class ServerSummaryResponse {
     @Builder
     public static class HikariCpSummary {
         private Integer active;
-        private Integer max;
+        private Integer activeMax;
         private Integer pending;
     }
 
@@ -77,16 +77,16 @@ public class ServerSummaryResponse {
         }
 
         Long heapUsedMB = jvm.getHeapUsedAvg() != null ? jvm.getHeapUsedAvg() / (1024 * 1024) : null;
-        Long heapMaxMB = jvm.getHeapUsedMax() != null ? jvm.getHeapUsedMax() / (1024 * 1024) : null;
-        Double gcOverheadPct = (jvm.getGcPauseSecondsSum() != null && jvm.getGcPauseCountSum() != null
+        Long heapUsedMaxMB = jvm.getHeapUsedMax() != null ? jvm.getHeapUsedMax() / (1024 * 1024) : null;
+        Double avgGcPauseMs = (jvm.getGcPauseSecondsSum() != null && jvm.getGcPauseCountSum() != null
                 && jvm.getGcPauseCountSum() > 0)
-                        ? jvm.getGcPauseSecondsSum() / jvm.getGcPauseCountSum()
+                        ? (jvm.getGcPauseSecondsSum() / jvm.getGcPauseCountSum()) * 1000.0
                         : null;
 
         return JvmSummary.builder()
                 .heapUsedMB(heapUsedMB)
-                .heapMaxMB(heapMaxMB)
-                .gcOverheadPct(gcOverheadPct)
+                .heapUsedMaxMB(heapUsedMaxMB)
+                .avgGcPauseMs(avgGcPauseMs)
                 .build();
     }
 
@@ -110,7 +110,7 @@ public class ServerSummaryResponse {
         Integer active = hikari.getActivePoolAvg() != null ? hikari.getActivePoolAvg().intValue() : null;
         return HikariCpSummary.builder()
                 .active(active)
-                .max(hikari.getActivePoolMax())
+                .activeMax(hikari.getActivePoolMax())
                 .pending(hikari.getPendingThreadsMax())
                 .build();
     }
