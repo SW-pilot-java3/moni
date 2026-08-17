@@ -9,6 +9,7 @@ import com.moni.api.domain.server.dto.response.ServerDeleteResponse;
 import com.moni.api.domain.server.dto.response.ServerResponse;
 import com.moni.api.domain.server.dto.response.ServerThresholdResponse;
 import com.moni.api.domain.server.dto.response.ServerThresholdUpdateResponse;
+import com.moni.api.domain.server.dto.response.ServerSummaryResponse;
 import com.moni.api.domain.server.service.ServerService;
 import com.moni.api.domain.server.service.ServerThresholdService;
 import com.moni.api.domain.server.service.ServerSseService;
@@ -101,6 +102,13 @@ public class ServerController {
             @PathVariable Long serverId,
             @RequestParam(defaultValue = "30") @Min(1) @Max(100) int limit) {
         ServerRealtimeMetricsResponse response = serverMetricService.getServerRealtimeMetrics(serverId, limit);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/metrics/summary")
+    public ResponseEntity<ApiResponse<List<ServerSummaryResponse>>> getServerSummaryList(
+            @RequestParam Long instanceId) {
+        List<ServerSummaryResponse> response = serverService.getServerSummaryList(instanceId);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
