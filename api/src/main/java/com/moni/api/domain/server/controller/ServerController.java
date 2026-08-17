@@ -31,6 +31,10 @@ import com.moni.api.domain.server.service.ServerThresholdService;
 
 import java.util.List;
 
+import com.moni.api.domain.server.service.ServerSseService;
+import org.springframework.http.MediaType;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
 @RestController
 @RequestMapping("/api/v1/servers")
 @RequiredArgsConstructor
@@ -38,6 +42,7 @@ public class ServerController {
 
     private final ServerService serverService;
     private final ServerThresholdService serverThresholdService;
+    private final ServerSseService serverSseService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<ServerResponse>> createServer(
@@ -90,5 +95,11 @@ public class ServerController {
             @RequestParam Long instanceId) {
         List<ServerResponse> response = serverService.getServerList(instanceId);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping(value = "/{serverId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamServerMetrics(
+            @PathVariable Long serverId) {
+        return serverSseService.subscribe(serverId);
     }
 }
