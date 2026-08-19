@@ -74,4 +74,21 @@ public class ServerApiKeyService {
                 .map(key -> ApiKeyStatusResponse.of(key.isActive(), key.getCreatedAt(), key.getRevokedAt()))
                 .orElseGet(() -> ApiKeyStatusResponse.of(false, null, null));
     }
+
+    public Server authenticate(String rawApiKey) {
+        if (rawApiKey == null || rawApiKey.isBlank()) {
+            throw new CustomException(ServerErrorCode.INVALID_API_KEY);
+        }
+
+        String keyHash = ApiKeyGenerator.hash(rawApiKey);
+        ApiKey apiKey = apiKeyRepository.findByKeyHashAndRevokedAtIsNull(keyHash)
+                .orElseThrow(() -> new CustomException(ServerErrorCode.INVALID_API_KEY));
+
+        Server server = apiKey.getServer();
+        if (server == null) {
+            throw new CustomException(ServerErrorCode.SERVER_NOT_FOUND);
+        }
+
+        return server;
+    }
 }

@@ -15,6 +15,7 @@ import com.moni.api.domain.server.entity.ServerStatus;
 import com.moni.api.domain.server.exception.ServerErrorCode;
 import com.moni.api.domain.server.repository.ApiKeyRepository;
 import com.moni.api.domain.server.repository.ServerRepository;
+import com.moni.api.domain.server.util.ApiKeyGenerator;
 import com.moni.api.global.error.exception.CustomException;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -166,5 +167,51 @@ class ServerApiKeyServiceTest {
         assertThat(response.getHasApiKey()).isFalse();
         assertThat(response.getCreatedAt()).isNull();
         assertThat(response.getRevokedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("API Key 인증 성공 - 유효한 키 전달 시 Server 반환")
+    void authenticate_success() {
+        // given
+        String rawApiKey = "valid_api_key_12345";
+        String keyHash = ApiKeyGenerator.hash(rawApiKey);
+        Server server = Server.builder().name("Auth-Server").port(8080).build();
+        ApiKey apiKey = ApiKey.builder().server(server).keyHash(keyHash).build();
+
+        given(apiKeyRepository.findByKeyHashAndRevokedAtIsNull(keyHash)).willReturn(Optional.of(apiKey));
+
+        // when
+        Server result = serverApiKeyService.authenticate(rawApiKey);
+
+        // then
+        assertThat(result).isEqualTo(server);
+    }
+
+    @Test
+    @DisplayName("API Key 인증 실패 - 유효하지 않거나 폐기된 키")
+    void authenticate_invalidKey() {
+        // given
+        String rawApiKey = "invalid_key";
+        String keyHash = ApiKeyGenerator.hash(rawApiKey);
+
+        given(apiKeyRepository.findByKeyHashAndRevokedAtIsNull(keyHash)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> serverApiKeyService.authenticate(rawApiKey))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ServerErrorCode.INVALID_API_KEY);
+    }
+
+    @Test
+    @DisplayName("API Key 인증 실패 - null 또는 공백 키")
+    void authenticate_nullOrBlankKey() {
+        // when & then
+        assertThatThrownBy(() -> serverApiKeyService.authenticate(null))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ServerErrorCode.INVALID_API_KEY);
+
+        assertThatThrownBy(() -> serverApiKeyService.authenticate("   "))
+                .isInstanceOf(CustomException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ServerErrorCode.INVALID_API_KEY);
     }
 }
