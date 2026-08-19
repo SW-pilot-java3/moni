@@ -12,6 +12,7 @@ import com.moni.api.domain.server.dto.response.ServerThresholdUpdateResponse;
 import com.moni.api.domain.server.dto.response.ServerSummaryResponse;
 import com.moni.api.domain.server.service.ServerService;
 import com.moni.api.domain.server.service.ServerThresholdService;
+import com.moni.api.domain.server.service.ServerSseService;
 import com.moni.api.global.response.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -30,6 +31,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.MediaType;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Validated
 @RestController
@@ -40,6 +43,7 @@ public class ServerController {
     private final ServerService serverService;
     private final ServerThresholdService serverThresholdService;
     private final ServerMetricService serverMetricService;
+    private final ServerSseService serverSseService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<ServerResponse>> createServer(
@@ -106,5 +110,11 @@ public class ServerController {
             @RequestParam Long instanceId) {
         List<ServerSummaryResponse> response = serverService.getServerSummaryList(instanceId);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping(value = "/{serverId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamServerMetrics(
+            @PathVariable Long serverId) {
+        return serverSseService.subscribe(serverId);
     }
 }
