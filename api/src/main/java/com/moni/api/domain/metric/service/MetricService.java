@@ -1,5 +1,7 @@
 package com.moni.api.domain.metric.service;
 
+import com.moni.api.domain.instance.mapper.InstanceRealtimeMetricMapper;
+import com.moni.api.domain.instance.service.InstanceRealtimeMetricService;
 import com.moni.api.domain.metric.dto.request.MetricRecordRequest;
 import com.moni.api.domain.metric.dto.response.MetricRecordResponse;
 import com.moni.api.domain.server.entity.Server;
@@ -16,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class MetricService {
 
     private final ServerApiKeyService serverApiKeyService;
+    private final InstanceRealtimeMetricService instanceRealtimeMetricService;
 
     @Transactional
     public MetricRecordResponse recordMetrics(String rawApiKey, MetricRecordRequest request) {
@@ -25,7 +28,8 @@ public class MetricService {
         // =========================================================================
         // TODO: [Instance Domain] 인스턴스 메트릭 저장, 인스턴스 상태 갱신 및 Instance SSE 실시간 브로드캐스트
         // =========================================================================
-
+        instanceRealtimeMetricService.recordMetric(
+                server.getInstance().getId(), InstanceRealtimeMetricMapper.from(request));
         // =========================================================================
         // TODO: [Server Domain] 서버 메트릭 저장, 서버 상태(CONNECTED/lastReceivedAt) 갱신 및 Server SSE 실시간 브로드캐스트
         // =========================================================================
