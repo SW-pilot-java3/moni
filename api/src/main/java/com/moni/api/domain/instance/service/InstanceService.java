@@ -69,7 +69,7 @@ public class InstanceService {
                 .orElseThrow(() -> new CustomException(InstanceErrorCode.INSTANCE_NOT_FOUND));
     }
 
-    private Instance getInstanceOwnedBy(Long instanceId, Long userId) {
+    public Instance getInstanceOwnedBy(Long instanceId, Long userId) {
         Instance instance = getInstanceById(instanceId);
         if (!instance.getUser().getId().equals(userId)) {
             throw new CustomException(InstanceErrorCode.INSTANCE_ACCESS_DENIED);

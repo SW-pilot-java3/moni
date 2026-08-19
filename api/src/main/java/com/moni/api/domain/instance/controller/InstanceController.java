@@ -70,8 +70,9 @@ public class InstanceController {
     }
 
     @GetMapping(value = "/{instanceId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamMetrics(@PathVariable Long instanceId) {
-        instanceService.getInstanceById(instanceId);
+    public SseEmitter streamMetrics(@PathVariable Long instanceId,
+                                     @AuthenticationPrincipal Long userId) {
+        instanceService.getInstanceOwnedBy(instanceId, userId);
         return sseEmitterRegistry.register(instanceId);
     }
 }
