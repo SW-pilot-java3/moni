@@ -25,9 +25,6 @@ public class MetricService {
         // API Key 검증 및 대상 서버 식별
         Server server = serverApiKeyService.authenticate(rawApiKey);
 
-        // =========================================================================
-        // TODO: [Instance Domain] 인스턴스 메트릭 저장, 인스턴스 상태 갱신 및 Instance SSE 실시간 브로드캐스트
-        // =========================================================================
         instanceRealtimeMetricService.recordMetric(
                 server.getInstance().getId(), InstanceRealtimeMetricMapper.from(request));
         // =========================================================================
