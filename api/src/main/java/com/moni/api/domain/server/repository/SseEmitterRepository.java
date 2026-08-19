@@ -14,23 +14,26 @@ public class SseEmitterRepository {
     private final Map<Long, List<SseEmitter>> emittersMap = new ConcurrentHashMap<>();
 
     public void save(Long serverId, SseEmitter emitter) {
-        emittersMap.computeIfAbsent(serverId, key -> new CopyOnWriteArrayList<>()).add(emitter);
+        emittersMap.compute(serverId, (key, emitters) -> {
+            if (emitters == null) {
+                emitters = new CopyOnWriteArrayList<>();
+            }
+            emitters.add(emitter);
+            return emitters;
+        });
     }
 
     public void delete(Long serverId, SseEmitter emitter) {
-        List<SseEmitter> emitters = emittersMap.get(serverId);
-        if (emitters != null) {
+        emittersMap.computeIfPresent(serverId, (key, emitters) -> {
             emitters.remove(emitter);
-            if (emitters.isEmpty()) {
-                emittersMap.remove(serverId);
-            }
-        }
+            return emitters.isEmpty() ? null : emitters;
+        });
     }
 
     public List<SseEmitter> findAllByServerId(Long serverId) {
         List<SseEmitter> emitters = emittersMap.get(serverId);
         if (emitters == null) {
-            return new ArrayList<>();
+            return List.of();
         }
         return new ArrayList<>(emitters);
     }

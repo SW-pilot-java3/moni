@@ -5,7 +5,6 @@ import com.moni.api.domain.server.exception.ServerErrorCode;
 import com.moni.api.domain.server.repository.ServerRepository;
 import com.moni.api.domain.server.repository.SseEmitterRepository;
 import com.moni.api.global.error.exception.CustomException;
-import java.io.IOException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -60,11 +59,13 @@ public class ServerSseService {
 
         for (SseEmitter emitter : emitters) {
             try {
-                emitter.send(SseEmitter.event()
-                        .name(EVENT_SERVER_METRIC)
-                        .data(metric));
-            } catch (IOException e) {
-                log.warn("서버(Server) SSE 실시간 메트릭 전송 실패, 세션 제거 (serverId: {}, error: {})", serverId, e.getMessage());
+                synchronized (emitter) {
+                    emitter.send(SseEmitter.event()
+                            .name(EVENT_SERVER_METRIC)
+                            .data(metric));
+                }
+            } catch (Exception e) {
+                log.warn("서버(Server) SSE 실시간 메트릭 전송 실패, 세션 정리 (serverId: {}, error: {})", serverId, e.getMessage());
                 sseEmitterRepository.delete(serverId, emitter);
             }
         }
@@ -72,11 +73,13 @@ public class ServerSseService {
 
     private void sendInitEvent(Long serverId, SseEmitter emitter) {
         try {
-            emitter.send(SseEmitter.event()
-                    .name(EVENT_CONNECT)
-                    .data("서버(Server) 실시간 SSE 스트림 연결 성공 (serverId: " + serverId + ")"));
-        } catch (IOException e) {
-            log.warn("서버(Server) SSE 초기 연결 이벤트 전송 실패 (serverId: {})", serverId);
+            synchronized (emitter) {
+                emitter.send(SseEmitter.event()
+                        .name(EVENT_CONNECT)
+                        .data("서버(Server) 실시간 SSE 스트림 연결 성공 (serverId: " + serverId + ")"));
+            }
+        } catch (Exception e) {
+            log.warn("서버(Server) SSE 초기 연결 이벤트 전송 실패, 세션 정리 (serverId: {}, error: {})", serverId, e.getMessage());
             sseEmitterRepository.delete(serverId, emitter);
         }
     }
