@@ -52,6 +52,9 @@ public class Server extends BaseTimeEntity {
     @OneToMany(mappedBy = "server", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ServerThreshold> thresholds = new ArrayList<>();
 
+    @OneToMany(mappedBy = "server", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ApiKey> apiKeys = new ArrayList<>();
+
     @Builder
     public Server(Instance instance, String name, Integer port, ServerStatus status) {
         this.instance = instance;
