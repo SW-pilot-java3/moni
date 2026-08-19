@@ -3,7 +3,9 @@ package com.moni.api.domain.metric.dto.request;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import lombok.Builder;
 import lombok.Getter;
@@ -14,7 +16,7 @@ import lombok.NoArgsConstructor;
 public class MetricRecordRequest {
 
     @NotNull(message = "수집 일시(collectedAt)는 필수입니다.")
-    private LocalDateTime collectedAt;
+    private Instant collectedAt;
 
     @Valid
     private InstanceMetricPayload instance;
@@ -23,10 +25,14 @@ public class MetricRecordRequest {
     private ServerMetricPayload server;
 
     @Builder
-    public MetricRecordRequest(LocalDateTime collectedAt, ServerMetricPayload server, InstanceMetricPayload instance) {
+    public MetricRecordRequest(Instant collectedAt, ServerMetricPayload server, InstanceMetricPayload instance) {
         this.collectedAt = collectedAt;
         this.server = server;
         this.instance = instance;
+    }
+
+    public LocalDateTime toLocalDateTime() {
+        return LocalDateTime.ofInstant(collectedAt, ZoneId.systemDefault());
     }
 
     @Getter
