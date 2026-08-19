@@ -8,7 +8,8 @@ import org.springframework.http.HttpStatus;
 public enum InstanceErrorCode implements ErrorCode {
 
     INSTANCE_NOT_FOUND(HttpStatus.NOT_FOUND, "I001", "존재하지 않는 인스턴스입니다."),
-    THRESHOLD_NOT_FOUND(HttpStatus.NOT_FOUND, "I002", "존재하지 않는 임계치입니다.");
+    THRESHOLD_NOT_FOUND(HttpStatus.NOT_FOUND, "I002", "존재하지 않는 임계치입니다."),
+    INSTANCE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "I003", "해당 인스턴스에 접근할 권한이 없습니다.");
 
     private final HttpStatus status;
     private final String code;
