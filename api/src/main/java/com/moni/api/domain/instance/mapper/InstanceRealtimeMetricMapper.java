@@ -2,8 +2,7 @@ package com.moni.api.domain.instance.mapper;
 
 import com.moni.api.domain.instance.dto.InstanceRealtimeMetricCreateRequest;
 import com.moni.api.domain.metric.dto.request.MetricRecordRequest;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
+
 import java.util.List;
 
 public class InstanceRealtimeMetricMapper {
@@ -31,8 +30,7 @@ public class InstanceRealtimeMetricMapper {
                         toFilesystems(payload.getFilesystems()),
                         toNetworks(payload.getNetworks()));
 
-        LocalDateTime collectedAt = LocalDateTime.ofInstant(request.getCollectedAt(), ZoneId.systemDefault());
-        return new InstanceRealtimeMetricCreateRequest(collectedAt, instancePayload);
+        return new InstanceRealtimeMetricCreateRequest(request.toLocalDateTime(), instancePayload);
     }
 
     private static List<InstanceRealtimeMetricCreateRequest.CoreCpu> toCpus(
