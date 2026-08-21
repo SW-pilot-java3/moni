@@ -6,6 +6,7 @@ import com.moni.api.domain.metric.dto.request.MetricRecordRequest;
 import com.moni.api.domain.metric.dto.response.MetricRecordResponse;
 import com.moni.api.domain.server.entity.Server;
 import com.moni.api.domain.server.service.ServerApiKeyService;
+import com.moni.api.domain.server.service.ServerRealtimeMetricService;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,17 +20,22 @@ public class MetricService {
 
     private final ServerApiKeyService serverApiKeyService;
     private final InstanceRealtimeMetricService instanceRealtimeMetricService;
+    private final ServerRealtimeMetricService serverRealtimeMetricService;
 
     @Transactional
     public MetricRecordResponse recordMetrics(String rawApiKey, MetricRecordRequest request) {
         // API Key 검증 및 대상 서버 식별
         Server server = serverApiKeyService.authenticate(rawApiKey);
 
-        instanceRealtimeMetricService.recordMetric(
-                server.getInstance().getId(), InstanceRealtimeMetricMapper.from(request));
-        // =========================================================================
-        // TODO: [Server Domain] 서버 메트릭 저장, 서버 상태(CONNECTED/lastReceivedAt) 갱신 및 Server SSE 실시간 브로드캐스트
-        // =========================================================================
+        if (request.getInstance() != null) {
+            instanceRealtimeMetricService.recordMetric(
+                    server.getInstance().getId(), InstanceRealtimeMetricMapper.from(request));
+        }
+        
+        if (request.getServer() != null) {
+            serverRealtimeMetricService.recordServerMetric(
+                    server, request.toLocalDateTime(), request.getServer());
+        }
 
         return MetricRecordResponse.of(LocalDateTime.now(), "ACCEPTED");
     }

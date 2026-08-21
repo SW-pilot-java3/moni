@@ -45,7 +45,6 @@ public class ServerSseStreamResponse {
     public static class ServerHttpMetricsDto {
         private String uri;
         private String method;
-        private String status;
         private Long requestsCount;
         private Double rps;
         private Double avgLatencyMs;
