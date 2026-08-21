@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 public record InstanceMetricStreamEvent(
         Long instanceId,
         LocalDateTime collectedAt,
-        Double cpuUsagePct
+        Double cpuUsagePct,
+        Long memAvailableBytes
 ) {
 }

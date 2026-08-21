@@ -17,9 +17,9 @@ import com.moni.api.domain.instance.repository.InstanceFileSystemMetricRepositor
 import com.moni.api.domain.instance.repository.InstanceNetworkMetricsRepository;
 import com.moni.api.domain.instance.repository.InstanceRealtimeMetricRepository;
 import com.moni.api.domain.instance.repository.InstanceRepository;
-import com.moni.api.domain.instance.sse.InstanceMetricSseEmitterRegistry;
 import com.moni.api.global.error.exception.CustomException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +34,7 @@ public class InstanceRealtimeMetricService {
     private final InstanceDiskMetricsRepository instanceDiskMetricsRepository;
     private final InstanceFileSystemMetricRepository instanceFileSystemMetricRepository;
     private final InstanceNetworkMetricsRepository instanceNetworkMetricsRepository;
-    private final InstanceMetricSseEmitterRegistry sseEmitterRegistry;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public void recordMetric(Long instanceId, InstanceRealtimeMetricCreateRequest request) {
@@ -64,9 +64,6 @@ public class InstanceRealtimeMetricService {
                 .map(InstanceRealtimeMetric::getCpuMetrics)
                 .orElse(null);
         Double cpuUsagePct = CpuUsageCalculator.calculate(previousCpuMetrics, cpuMetrics);
-
-        sseEmitterRegistry.broadcast(instanceId, new InstanceMetricStreamEvent(
-                instanceId, request.collectedAt(), cpuUsagePct));
 
         InstanceRealtimeMetric metric = InstanceRealtimeMetric.builder()
                 .instance(instance)
@@ -126,5 +123,8 @@ public class InstanceRealtimeMetricService {
                     .build();
             instanceNetworkMetricsRepository.save(networkMetric);
         }
+
+        eventPublisher.publishEvent(new InstanceMetricStreamEvent(
+                instanceId, request.collectedAt(), cpuUsagePct, memoryMetrics.getMemAvailableBytes()));
     }
 }
