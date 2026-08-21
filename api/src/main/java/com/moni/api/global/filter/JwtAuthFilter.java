@@ -24,11 +24,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        String header = request.getHeader("Authorization");
+        String token = resolveToken(request);
 
-        if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
-
+        if (token != null) {
             jwtProvider.extractValidateUserId(token, "access")
                     .ifPresent(userId -> {
                         UsernamePasswordAuthenticationToken auth =
@@ -38,6 +36,23 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     });
         }
         filterChain.doFilter(request, response);
+    }
+
+    // EventSource(SSE)는 커스텀 헤더를 지원하지 않아 /stream 경로에 한해 쿼리 파라미터 토큰을 허용한다.
+    private String resolveToken(HttpServletRequest request) {
+        String header = request.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            return header.substring(7);
+        }
+
+        if (request.getRequestURI().endsWith("/stream")) {
+            String queryToken = request.getParameter("token");
+            if (queryToken != null && !queryToken.isBlank()) {
+                return queryToken;
+            }
+        }
+
+        return null;
     }
 }
 
