@@ -9,6 +9,7 @@ import com.moni.api.domain.instance.exception.InstanceErrorCode;
 import com.moni.api.domain.instance.repository.InstanceRealtimeMetricRepository;
 import com.moni.api.domain.instance.repository.InstanceRepository;
 import com.moni.api.domain.instance.repository.InstanceThresholdRepository;
+import com.moni.api.domain.server.repository.ServerRepository;
 import com.moni.api.domain.user.entity.User;
 import com.moni.api.domain.user.repository.UserRepository;
 import com.moni.api.global.error.CommonErrorCode;
@@ -38,6 +39,13 @@ public class InstanceService {
     private final InstanceThresholdRepository instanceThresholdRepository;
     private final InstanceRealtimeMetricRepository instanceRealtimeMetricRepository;
     private final UserRepository userRepository;
+    private final ServerRepository serverRepository;
+
+    public List<InstanceListItemResponse> getInstances(Long userId) {
+        return instanceRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
+                .map(instance -> InstanceListItemResponse.of(instance, serverRepository.countByInstanceId(instance.getId())))
+                .toList();
+    }
 
     @Transactional
     public InstanceCreateResponse createInstance(Long userId, InstanceCreateRequest request) {

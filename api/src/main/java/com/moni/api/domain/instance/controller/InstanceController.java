@@ -32,6 +32,12 @@ public class InstanceController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<InstanceListItemResponse>>> getInstances(@AuthenticationPrincipal Long userId) {
+        List<InstanceListItemResponse> response = instanceService.getInstances(userId);
+        return ResponseEntity.status(HttpStatus.OK).body(ApiResponse.success(response));
+    }
+
     @PatchMapping("/{instanceId}")
     public ResponseEntity<ApiResponse<InstanceUpdateResponse>> updateInstance(@PathVariable Long instanceId,
                                                                                 @AuthenticationPrincipal Long userId,
