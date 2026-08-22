@@ -12,7 +12,8 @@ public enum ServerErrorCode implements ErrorCode {
     SERVER_THRESHOLD_NOT_FOUND(HttpStatus.NOT_FOUND, "S003", "존재하지 않는 서버 임계치 설정입니다."),
     API_KEY_ALREADY_EXISTS(HttpStatus.CONFLICT, "S004", "이미 발급된 활성 API Key가 존재합니다. 재발급을 이용해주세요."),
     API_KEY_NOT_FOUND(HttpStatus.NOT_FOUND, "S005", "활성화된 API Key가 존재하지 않습니다."),
-    INVALID_API_KEY(HttpStatus.UNAUTHORIZED, "S006", "유효하지 않거나 만료된 API Key입니다.");
+    INVALID_API_KEY(HttpStatus.UNAUTHORIZED, "S006", "유효하지 않거나 만료된 API Key입니다."),
+    INVALID_HISTORICAL_DATE(HttpStatus.BAD_REQUEST, "S007", "과거 통계 조회의 경우 어제 이전 날짜만 조회 가능합니다.");
 
     private final HttpStatus status;
     private final String code;
