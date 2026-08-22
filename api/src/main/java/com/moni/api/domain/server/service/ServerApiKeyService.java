@@ -7,10 +7,9 @@ import com.moni.api.domain.server.entity.ApiKey;
 import com.moni.api.domain.server.entity.Server;
 import com.moni.api.domain.server.exception.ServerErrorCode;
 import com.moni.api.domain.server.repository.ApiKeyRepository;
-import com.moni.api.domain.server.repository.ServerRepository;
 import com.moni.api.domain.server.util.ApiKeyGenerator;
+import com.moni.api.domain.server.validator.ServerValidator;
 import com.moni.api.global.error.exception.CustomException;
-import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,13 +19,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ServerApiKeyService {
 
-    private final ServerRepository serverRepository;
+    private final ServerValidator serverValidator;
     private final ApiKeyRepository apiKeyRepository;
 
     @Transactional
-    public ApiKeyCreateResponse createApiKey(Long serverId) {
-        Server server = serverRepository.findById(serverId)
-                .orElseThrow(() -> new CustomException(ServerErrorCode.SERVER_NOT_FOUND));
+    public ApiKeyCreateResponse createApiKey(Long serverId, Long userId) {
+        Server server = serverValidator.validateAndGetServer(serverId, userId);
 
         apiKeyRepository.findByServerIdAndRevokedAtIsNull(serverId).ifPresent(key -> {
             throw new CustomException(ServerErrorCode.API_KEY_ALREADY_EXISTS);
@@ -46,9 +44,8 @@ public class ServerApiKeyService {
     }
 
     @Transactional
-    public ApiKeyRotateResponse rotateApiKey(Long serverId) {
-        Server server = serverRepository.findById(serverId)
-                .orElseThrow(() -> new CustomException(ServerErrorCode.SERVER_NOT_FOUND));
+    public ApiKeyRotateResponse rotateApiKey(Long serverId, Long userId) {
+        Server server = serverValidator.validateAndGetServer(serverId, userId);
 
         apiKeyRepository.findByServerIdAndRevokedAtIsNull(serverId).ifPresent(ApiKey::revoke);
 
@@ -65,10 +62,8 @@ public class ServerApiKeyService {
         return ApiKeyRotateResponse.of(savedApiKey.getId(), serverId, newRawApiKey, savedApiKey.getCreatedAt());
     }
 
-    public ApiKeyStatusResponse getApiKeyStatus(Long serverId) {
-        if (!serverRepository.existsById(serverId)) {
-            throw new CustomException(ServerErrorCode.SERVER_NOT_FOUND);
-        }
+    public ApiKeyStatusResponse getApiKeyStatus(Long serverId, Long userId) {
+        serverValidator.validateAndGetServer(serverId, userId);
 
         return apiKeyRepository.findFirstByServerIdOrderByCreatedAtDesc(serverId)
                 .map(key -> ApiKeyStatusResponse.of(key.isActive(), key.getCreatedAt(), key.getRevokedAt()))

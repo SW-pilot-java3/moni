@@ -6,8 +6,8 @@ import com.moni.api.domain.server.dto.response.ServerThresholdResponse;
 import com.moni.api.domain.server.dto.response.ServerThresholdUpdateResponse;
 import com.moni.api.domain.server.entity.ServerThreshold;
 import com.moni.api.domain.server.exception.ServerErrorCode;
-import com.moni.api.domain.server.repository.ServerRepository;
 import com.moni.api.domain.server.repository.ServerThresholdRepository;
+import com.moni.api.domain.server.validator.ServerValidator;
 import com.moni.api.global.error.exception.CustomException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,13 +20,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ServerThresholdService {
 
-    private final ServerRepository serverRepository;
     private final ServerThresholdRepository serverThresholdRepository;
+    private final ServerValidator serverValidator;
 
-    public List<ServerThresholdResponse> getThresholds(Long serverId) {
-        if (!serverRepository.existsById(serverId)) {
-            throw new CustomException(ServerErrorCode.SERVER_NOT_FOUND);
-        }
+    public List<ServerThresholdResponse> getThresholds(Long serverId, Long userId) {
+        serverValidator.validateAndGetServer(serverId, userId);
 
         List<ServerThreshold> thresholds = serverThresholdRepository.findByServerId(serverId);
         return thresholds.stream()
@@ -35,10 +33,8 @@ public class ServerThresholdService {
     }
 
     @Transactional
-    public ServerThresholdUpdateResponse updateThresholds(Long serverId, ServerThresholdsPatchRequest request) {
-        if (!serverRepository.existsById(serverId)) {
-            throw new CustomException(ServerErrorCode.SERVER_NOT_FOUND);
-        }
+    public ServerThresholdUpdateResponse updateThresholds(Long serverId, Long userId, ServerThresholdsPatchRequest request) {
+        serverValidator.validateAndGetServer(serverId, userId);
 
         int updatedCount = request.getThresholds().size();
 

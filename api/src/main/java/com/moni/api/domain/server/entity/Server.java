@@ -79,4 +79,10 @@ public class Server extends BaseTimeEntity {
     public void updateLastReceivedAt(LocalDateTime lastReceivedAt) {
         this.lastReceivedAt = lastReceivedAt;
     }
+
+    public boolean isOwnedBy(Long userId) {
+        return this.instance != null
+                && this.instance.getUser() != null
+                && this.instance.getUser().getId().equals(userId);
+    }
 }
