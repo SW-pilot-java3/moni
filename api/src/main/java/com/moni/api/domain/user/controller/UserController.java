@@ -23,4 +23,10 @@ public class UserController {
         UserDetailResponse response = userService.getUserDetail(userId);
         return ResponseEntity.status(HttpStatus.OK).body(ApiResponse.success(response));
     }
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<UserDetailResponse>> getMyProfile() {
+        Long currentUserId = 1L;
+        UserDetailResponse response = userService.getUserDetail(currentUserId);
+        return ResponseEntity.status(HttpStatus.OK).body(ApiResponse.success(response));
+    }
 }
