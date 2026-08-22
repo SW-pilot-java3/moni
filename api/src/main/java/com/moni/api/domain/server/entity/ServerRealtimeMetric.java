@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +19,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "server_realtime_metrics")
+@Table(
+        name = "server_realtime_metrics",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_server_realtime_metrics_server_collected",
+                columnNames = {"server_id", "collected_at"})
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ServerRealtimeMetric {

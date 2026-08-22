@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,7 +42,12 @@ public class ServerRealtimeMetricService {
 
         // 서버 실시간 원시 메트릭 DB 저장
         ServerRealtimeMetric realtimeMetric = ServerRealtimeMetricMapper.toEntity(server.getId(), collectedAt, payload);
-        serverRealtimeMetricRepository.save(realtimeMetric);
+        try {
+            serverRealtimeMetricRepository.save(realtimeMetric);
+        } catch (DataIntegrityViolationException e) {
+            log.info("이미 처리된 메트릭 push - serverId={}, collectedAt={}", server.getId(), collectedAt);
+            return;
+        }
 
         // 서버 상태(CONNECTED) 및 마지막 수신 시각 갱신
         server.updateStatus(ServerStatus.CONNECTED);

@@ -19,10 +19,13 @@ import com.moni.api.domain.instance.repository.InstanceRealtimeMetricRepository;
 import com.moni.api.domain.instance.repository.InstanceRepository;
 import com.moni.api.global.error.exception.CustomException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
@@ -72,7 +75,12 @@ public class InstanceRealtimeMetricService {
                 .memoryMetrics(memoryMetrics)
                 .build();
 
-        instanceRealtimeMetricRepository.save(metric);
+        try {
+            instanceRealtimeMetricRepository.save(metric);
+        } catch (DataIntegrityViolationException e) {
+            log.info("이미 처리된 메트릭 push - instanceId={}, collectedAt={}", instanceId, request.collectedAt());
+            return;
+        }
 
         for (InstanceRealtimeMetricCreateRequest.CoreCpu coreCpu : payload.cpus()) {
             InstanceCpuMetric cpuMetric = InstanceCpuMetric.builder()
