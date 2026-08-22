@@ -12,4 +12,8 @@ public interface ServerRealtimeMetricRepository extends JpaRepository<ServerReal
 
     @EntityGraph(attributePaths = {"httpEndpoints", "hikaricpPools", "executors"})
     List<ServerRealtimeMetric> findByServerIdOrderByCollectedAtDesc(Long serverId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"httpEndpoints", "hikaricpPools", "executors"})
+    List<ServerRealtimeMetric> findAllByServerIdAndCollectedAtBetweenOrderByCollectedAtAsc(
+            Long serverId, java.time.LocalDateTime from, java.time.LocalDateTime to);
 }
