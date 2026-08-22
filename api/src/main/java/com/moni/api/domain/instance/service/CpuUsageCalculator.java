@@ -28,6 +28,10 @@ final class CpuUsageCalculator {
             return null;
         }
 
+        if (idleDelta < 0 || idleDelta > totalDelta) {
+            return null;
+        }
+
         return (1 - (idleDelta / totalDelta)) * 100;
     }
 }
