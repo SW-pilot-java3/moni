@@ -63,7 +63,7 @@ public class InstanceRealtimeMetricService {
                 .build();
 
         CpuMetrics previousCpuMetrics = instanceRealtimeMetricRepository
-                .findFirstByInstanceIdOrderByCollectedAtDesc(instanceId)
+                .findFirstByInstanceIdAndCollectedAtLessThanOrderByCollectedAtDesc(instanceId, request.collectedAt())
                 .map(InstanceRealtimeMetric::getCpuMetrics)
                 .orElse(null);
         Double cpuUsagePct = CpuUsageCalculator.calculate(previousCpuMetrics, cpuMetrics);

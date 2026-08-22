@@ -67,9 +67,9 @@ public class ServerRealtimeMetricService {
             LocalDateTime collectedAt) {
         String key = serverId + ":" + uri + ":" + method;
         EndpointSnapshot prev = endpointSnapshots.getIfPresent(key);
-        endpointSnapshots.put(key, new EndpointSnapshot(currentCount, collectedAt));
 
         if (prev == null) {
+            endpointSnapshots.put(key, new EndpointSnapshot(currentCount, collectedAt));
             return 0.0;
         }
 
@@ -77,6 +77,8 @@ public class ServerRealtimeMetricService {
         if (secondsDiff <= 0) {
             return 0.0;
         }
+
+        endpointSnapshots.put(key, new EndpointSnapshot(currentCount, collectedAt));
 
         long countDiff = currentCount - prev.requestsCount();
         if (countDiff < 0) {
