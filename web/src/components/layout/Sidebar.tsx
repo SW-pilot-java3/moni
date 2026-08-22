@@ -12,8 +12,9 @@ const navItems = [
 export default function Sidebar() {
   return (
     <aside className="w-60 shrink-0 border-r border-slate-200 bg-white px-4 py-6">
-      <div className="mb-8 px-2 font-mono text-lg font-bold tracking-wide text-brand-500">
-        MONITORING
+      <div className="mb-8 flex items-center gap-2 px-2">
+        <img src="/favicon/favicon.svg" alt="" className="h-6 w-6 rounded" />
+        <span className="font-mono text-lg font-bold tracking-wide text-brand-500">Moni</span>
       </div>
       <nav className="flex flex-col gap-1">
         {navItems.map((item) => (

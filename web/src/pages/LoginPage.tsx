@@ -41,7 +41,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
       <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-10 shadow-sm">
         <h1 className="mb-6 font-mono text-2xl font-bold tracking-wide text-brand-500">
-          MONITORING
+          Moni
         </h1>
 
         <div className="mb-6 flex gap-6 border-b border-slate-200">
