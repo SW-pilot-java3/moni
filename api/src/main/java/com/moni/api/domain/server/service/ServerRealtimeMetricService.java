@@ -4,6 +4,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.moni.api.domain.metric.dto.request.MetricRecordRequest;
 import com.moni.api.domain.server.dto.response.ServerSseStreamResponse;
+import com.moni.api.domain.server.entity.JvmMetric;
 import com.moni.api.domain.server.entity.Server;
 import com.moni.api.domain.server.entity.ServerRealtimeMetric;
 import com.moni.api.domain.server.entity.ServerStatus;
@@ -24,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ServerRealtimeMetricService {
 
     private final ServerRealtimeMetricRepository serverRealtimeMetricRepository;
+    private final ServerThresholdEvaluationService serverThresholdEvaluationService;
     private final ServerSseService serverSseService;
 
     private final Cache<String, EndpointSnapshot> endpointSnapshots = Caffeine.newBuilder()
@@ -40,6 +42,11 @@ public class ServerRealtimeMetricService {
             return;
         }
 
+        JvmMetric previousJvmMetric = serverRealtimeMetricRepository
+                .findFirstByServerIdAndCollectedAtLessThanOrderByCollectedAtDesc(server.getId(), collectedAt)
+                .map(ServerRealtimeMetric::getJvmMetric)
+                .orElse(null);
+
         // 서버 실시간 원시 메트릭 DB 저장
         ServerRealtimeMetric realtimeMetric = ServerRealtimeMetricMapper.toEntity(server.getId(), collectedAt, payload);
         try {
@@ -52,6 +59,9 @@ public class ServerRealtimeMetricService {
         // 서버 상태(CONNECTED) 및 마지막 수신 시각 갱신
         server.updateStatus(ServerStatus.CONNECTED);
         server.updateLastReceivedAt(collectedAt);
+
+        // 임계치 비교
+        serverThresholdEvaluationService.evaluate(server.getId(), collectedAt, realtimeMetric, previousJvmMetric);
 
         // SSE 브로드캐스트
         ServerSseStreamResponse sseResponse = ServerRealtimeMetricMapper.toSseResponse(

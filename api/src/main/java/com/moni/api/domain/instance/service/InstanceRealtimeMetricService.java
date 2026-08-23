@@ -18,6 +18,8 @@ import com.moni.api.domain.instance.repository.InstanceNetworkMetricsRepository;
 import com.moni.api.domain.instance.repository.InstanceRealtimeMetricRepository;
 import com.moni.api.domain.instance.repository.InstanceRepository;
 import com.moni.api.global.error.exception.CustomException;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -37,6 +39,7 @@ public class InstanceRealtimeMetricService {
     private final InstanceDiskMetricsRepository instanceDiskMetricsRepository;
     private final InstanceFileSystemMetricRepository instanceFileSystemMetricRepository;
     private final InstanceNetworkMetricsRepository instanceNetworkMetricsRepository;
+    private final InstanceThresholdEvaluationService instanceThresholdEvaluationService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -108,6 +111,7 @@ public class InstanceRealtimeMetricService {
             instanceDiskMetricsRepository.save(diskMetric);
         }
 
+        List<InstanceFileSystemMetric> fileSystemMetrics = new ArrayList<>();
         for (InstanceRealtimeMetricCreateRequest.FileSystemMount fileSystemMount : payload.filesystems()) {
             InstanceFileSystemMetric fileSystemMetric = InstanceFileSystemMetric.builder()
                     .realtimeMetric(metric)
@@ -117,6 +121,7 @@ public class InstanceRealtimeMetricService {
                     .fsAvailBytes(fileSystemMount.fsAvailBytes())
                     .build();
             instanceFileSystemMetricRepository.save(fileSystemMetric);
+            fileSystemMetrics.add(fileSystemMetric);
         }
 
         for (InstanceRealtimeMetricCreateRequest.NetworkInterfaceMetric networkInterface : payload.networks()) {
@@ -131,6 +136,9 @@ public class InstanceRealtimeMetricService {
                     .build();
             instanceNetworkMetricsRepository.save(networkMetric);
         }
+
+        instanceThresholdEvaluationService.evaluate(
+                instanceId, request.collectedAt(), cpuUsagePct, memoryMetrics, fileSystemMetrics);
 
         eventPublisher.publishEvent(new InstanceMetricStreamEvent(
                 instanceId, request.collectedAt(), cpuUsagePct, memoryMetrics.getMemAvailableBytes()));
