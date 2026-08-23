@@ -6,28 +6,17 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 
+import com.moni.api.domain.server.dto.response.ServerHistoryMetricsResponse;
 import com.moni.api.domain.server.dto.response.ServerRealtimeMetricsResponse;
 import com.moni.api.domain.server.entity.JvmMetric;
+import com.moni.api.domain.server.entity.Server;
 import com.moni.api.domain.server.entity.ServerExecutorMetric;
 import com.moni.api.domain.server.entity.ServerHikariCpPoolMetric;
 import com.moni.api.domain.server.entity.ServerHttpEndpointMetric;
 import com.moni.api.domain.server.entity.ServerRealtimeMetric;
 import com.moni.api.domain.server.exception.ServerErrorCode;
 import com.moni.api.domain.server.repository.ServerRealtimeMetricRepository;
-import com.moni.api.domain.server.repository.ServerRepository;
-import com.moni.api.global.error.exception.CustomException;
-import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.List;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Pageable;
-
-import com.moni.api.domain.server.dto.response.ServerHistoryMetricsResponse;
+import com.moni.api.domain.server.validator.ServerValidator;
 import com.moni.api.domain.stat.entity.StatHikariCp;
 import com.moni.api.domain.stat.entity.StatHttp;
 import com.moni.api.domain.stat.entity.StatJvm;
@@ -36,7 +25,19 @@ import com.moni.api.domain.stat.repository.StatHikariCpRepository;
 import com.moni.api.domain.stat.repository.StatHttpRepository;
 import com.moni.api.domain.stat.repository.StatJvmRepository;
 import com.moni.api.domain.stat.repository.StatThreadPoolRepository;
+import com.moni.api.global.error.exception.CustomException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
 
 @ExtendWith(MockitoExtension.class)
 class ServerMetricServiceTest {
@@ -45,7 +46,7 @@ class ServerMetricServiceTest {
     private ServerMetricService serverMetricService;
 
     @Mock
-    private ServerRepository serverRepository;
+    private ServerValidator serverValidator;
 
     @Mock
     private ServerRealtimeMetricRepository serverRealtimeMetricRepository;
@@ -62,11 +63,14 @@ class ServerMetricServiceTest {
     @Mock
     private StatThreadPoolRepository statThreadPoolRepository;
 
+    private final Long userId = 1L;
+
     @Test
     @DisplayName("서버 실시간 메트릭 조회 성공")
     void getServerRealtimeMetrics_success() {
         // given
         Long serverId = 100L;
+        Server mockServer = Mockito.mock(Server.class);
         LocalDateTime now = LocalDateTime.now();
 
         JvmMetric jvm1 = JvmMetric.builder()
@@ -121,12 +125,12 @@ class ServerMetricServiceTest {
                 .executors(List.of(exec1))
                 .build();
 
-        given(serverRepository.existsById(serverId)).willReturn(true);
+        given(serverValidator.validateAndGetServer(serverId, userId)).willReturn(mockServer);
         given(serverRealtimeMetricRepository.findByServerIdOrderByCollectedAtDesc(eq(serverId), any(Pageable.class)))
                 .willReturn(List.of(metric2, metric1));
 
         // when
-        ServerRealtimeMetricsResponse response = serverMetricService.getServerRealtimeMetrics(serverId, 30);
+        ServerRealtimeMetricsResponse response = serverMetricService.getServerRealtimeMetrics(serverId, userId, 30);
 
         // then
         assertThat(response).isNotNull();
@@ -141,14 +145,15 @@ class ServerMetricServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 서버의 실시간 메트릭 조회 시 예외 발생")
+    @DisplayName("존재하지 않거나 권한 없는 서버의 실시간 메트릭 조회 시 예외 발생")
     void getServerRealtimeMetrics_serverNotFound_throwsException() {
         // given
         Long serverId = 999L;
-        given(serverRepository.existsById(serverId)).willReturn(false);
+        given(serverValidator.validateAndGetServer(serverId, userId))
+                .willThrow(new CustomException(ServerErrorCode.SERVER_NOT_FOUND));
 
         // when & then
-        assertThatThrownBy(() -> serverMetricService.getServerRealtimeMetrics(serverId, 30))
+        assertThatThrownBy(() -> serverMetricService.getServerRealtimeMetrics(serverId, userId, 30))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ServerErrorCode.SERVER_NOT_FOUND);
     }
@@ -158,12 +163,13 @@ class ServerMetricServiceTest {
     void getServerRealtimeMetrics_emptyMetrics_returnsEmptyResponse() {
         // given
         Long serverId = 100L;
-        given(serverRepository.existsById(serverId)).willReturn(true);
+        Server mockServer = Mockito.mock(Server.class);
+        given(serverValidator.validateAndGetServer(serverId, userId)).willReturn(mockServer);
         given(serverRealtimeMetricRepository.findByServerIdOrderByCollectedAtDesc(eq(serverId), any(Pageable.class)))
                 .willReturn(Collections.emptyList());
 
         // when
-        ServerRealtimeMetricsResponse response = serverMetricService.getServerRealtimeMetrics(serverId, 30);
+        ServerRealtimeMetricsResponse response = serverMetricService.getServerRealtimeMetrics(serverId, userId, 30);
 
         // then
         assertThat(response).isNotNull();
@@ -176,6 +182,7 @@ class ServerMetricServiceTest {
     void getServerHistoryMetrics_success() {
         // given
         Long serverId = 100L;
+        Server mockServer = Mockito.mock(Server.class);
         LocalDate yesterday = LocalDate.now().minusDays(1);
         LocalDateTime statTime = yesterday.atTime(14, 0);
 
@@ -223,7 +230,7 @@ class ServerMetricServiceTest {
                 .queuedTasksMax(5)
                 .build();
 
-        given(serverRepository.existsById(serverId)).willReturn(true);
+        given(serverValidator.validateAndGetServer(serverId, userId)).willReturn(mockServer);
         given(statJvmRepository.findAllByServerIdAndTimeWindowAndStatTimeBetweenOrderByStatTimeAsc(eq(serverId), eq("1H"), any(), any()))
                 .willReturn(List.of(statJvm));
         given(statHttpRepository.findAllByServerIdAndTimeWindowAndStatTimeBetweenOrderByStatTimeAsc(eq(serverId), eq("1H"), any(), any()))
@@ -234,7 +241,7 @@ class ServerMetricServiceTest {
                 .willReturn(List.of(statThreadPool));
 
         // when
-        ServerHistoryMetricsResponse response = serverMetricService.getServerHistoryMetrics(serverId, yesterday);
+        ServerHistoryMetricsResponse response = serverMetricService.getServerHistoryMetrics(serverId, userId, yesterday);
 
         // then
         assertThat(response).isNotNull();
@@ -325,24 +332,26 @@ class ServerMetricServiceTest {
     void getServerHistoryMetrics_todayDate_throwsException() {
         // given
         Long serverId = 100L;
+        Server mockServer = Mockito.mock(Server.class);
         LocalDate today = LocalDate.now();
-        given(serverRepository.existsById(serverId)).willReturn(true);
+        given(serverValidator.validateAndGetServer(serverId, userId)).willReturn(mockServer);
 
         // when & then
-        assertThatThrownBy(() -> serverMetricService.getServerHistoryMetrics(serverId, today))
+        assertThatThrownBy(() -> serverMetricService.getServerHistoryMetrics(serverId, userId, today))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ServerErrorCode.INVALID_HISTORICAL_DATE);
     }
 
     @Test
-    @DisplayName("존재하지 않는 서버의 과거 통계 조회 시 SERVER_NOT_FOUND 예외 발생")
+    @DisplayName("존재하지 않거나 권한 없는 서버의 과거 통계 조회 시 SERVER_NOT_FOUND 예외 발생")
     void getServerHistoryMetrics_serverNotFound_throwsException() {
         // given
         Long serverId = 999L;
-        given(serverRepository.existsById(serverId)).willReturn(false);
+        given(serverValidator.validateAndGetServer(serverId, userId))
+                .willThrow(new CustomException(ServerErrorCode.SERVER_NOT_FOUND));
 
         // when & then
-        assertThatThrownBy(() -> serverMetricService.getServerHistoryMetrics(serverId, LocalDate.now().minusDays(1)))
+        assertThatThrownBy(() -> serverMetricService.getServerHistoryMetrics(serverId, userId, LocalDate.now().minusDays(1)))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ServerErrorCode.SERVER_NOT_FOUND);
     }

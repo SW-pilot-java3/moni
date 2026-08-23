@@ -9,7 +9,7 @@ import com.moni.api.domain.server.dto.response.ServerRealtimeSeriesDto;
 import com.moni.api.domain.server.entity.ServerRealtimeMetric;
 import com.moni.api.domain.server.exception.ServerErrorCode;
 import com.moni.api.domain.server.repository.ServerRealtimeMetricRepository;
-import com.moni.api.domain.server.repository.ServerRepository;
+import com.moni.api.domain.server.validator.ServerValidator;
 import com.moni.api.domain.stat.entity.StatHikariCp;
 import com.moni.api.domain.stat.entity.StatHttp;
 import com.moni.api.domain.stat.entity.StatJvm;
@@ -43,17 +43,15 @@ public class ServerMetricService {
 
     private static final String TIME_WINDOW_1H = "1H";
 
-    private final ServerRepository serverRepository;
+    private final ServerValidator serverValidator;
     private final ServerRealtimeMetricRepository serverRealtimeMetricRepository;
     private final StatJvmRepository statJvmRepository;
     private final StatHttpRepository statHttpRepository;
     private final StatHikariCpRepository statHikariCpRepository;
     private final StatThreadPoolRepository statThreadPoolRepository;
 
-    public ServerRealtimeMetricsResponse getServerRealtimeMetrics(Long serverId, int limit) {
-        if (!serverRepository.existsById(serverId)) {
-            throw new CustomException(ServerErrorCode.SERVER_NOT_FOUND);
-        }
+    public ServerRealtimeMetricsResponse getServerRealtimeMetrics(Long serverId, Long userId, int limit) {
+        serverValidator.validateAndGetServer(serverId, userId);
 
         List<ServerRealtimeMetric> metrics = serverRealtimeMetricRepository.findByServerIdOrderByCollectedAtDesc(
                 serverId, PageRequest.of(0, limit));
@@ -73,10 +71,8 @@ public class ServerMetricService {
         return ServerRealtimeMetricsResponse.of(current, series);
     }
 
-    public ServerHistoryMetricsResponse getServerHistoryMetrics(Long serverId, LocalDate date) {
-        if (!serverRepository.existsById(serverId)) {
-            throw new CustomException(ServerErrorCode.SERVER_NOT_FOUND);
-        }
+    public ServerHistoryMetricsResponse getServerHistoryMetrics(Long serverId, Long userId, LocalDate date) {
+        serverValidator.validateAndGetServer(serverId, userId);
 
         LocalDate queryDate = (date != null) ? date : LocalDate.now().minusDays(1);
         if (!queryDate.isBefore(LocalDate.now())) {
