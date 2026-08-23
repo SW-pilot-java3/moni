@@ -39,6 +39,7 @@ import java.util.stream.Collectors;
 public class InstanceStatBatchService {
 
     private static final String TIME_WINDOW = "5M";
+    private static final String TIME_WINDOW_1H = "1H";
 
     private final InstanceRepository instanceRepository;
     private final InstanceRealtimeMetricRepository instanceRealtimeMetricRepository;
@@ -64,6 +65,29 @@ public class InstanceStatBatchService {
                 log.warn("Failed to aggregate stats for instance {}", instance.getId(), e);
             }
         }
+    }
+
+    @Scheduled(cron = "0 0 * * * *")
+    public void aggregateOneHourStats() {
+        LocalDateTime to = LocalDateTime.now().withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime from = to.minusHours(1);
+
+        List<Instance> instances = instanceRepository.findAll();
+        for (Instance instance : instances) {
+            try {
+                aggregateOneHourForInstance(instance, from, to);
+            } catch (Exception e) {
+                log.warn("Failed to aggregate 1H stats for instance {}", instance.getId(), e);
+            }
+        }
+    }
+
+    @Transactional
+    public void aggregateOneHourForInstance(Instance instance, LocalDateTime from, LocalDateTime to) {
+        aggregateCpu1H(instance, from, to);
+        aggregateMemory1H(instance, from, to);
+        aggregateDisk1H(instance, from, to);
+        aggregateNetwork1H(instance, from, to);
     }
 
     @Transactional
@@ -333,6 +357,112 @@ public class InstanceStatBatchService {
                 .rxMbpsAvg(StatMathUtils.avg(rxMbpsSamples))
                 .txMbpsAvg(StatMathUtils.avg(txMbpsSamples))
                 .errorsSum((int) errorsSum)
+                .build();
+        instanceStatNetworkRepository.save(stat);
+    }
+    
+    private void aggregateCpu1H(Instance instance, LocalDateTime from, LocalDateTime to) {
+        List<InstanceStatCpu> stats = instanceStatCpuRepository
+                .findAllByInstanceIdAndTimeWindowAndStatTimeBetweenOrderByStatTimeAsc(
+                        instance.getId(), TIME_WINDOW, from.plusSeconds(1), to);
+
+        if (stats.isEmpty()) {
+            return;
+        }
+
+        Double cpuUsageAvg = StatMathUtils.avg(stats.stream().map(InstanceStatCpu::getCpuUsageAvg).toList());
+        Double cpuUsageMax = StatMathUtils.max(stats.stream().map(InstanceStatCpu::getCpuUsageMax).toList());
+        Double cpuIowaitAvg = StatMathUtils.avg(stats.stream().map(InstanceStatCpu::getCpuIowaitAvg).toList());
+
+        InstanceStatCpu stat = InstanceStatCpu.builder()
+                .instance(instance)
+                .timeWindow(TIME_WINDOW_1H)
+                .statTime(to)
+                .cpuUsageAvg(StatMathUtils.round1(cpuUsageAvg))
+                .cpuUsageMax(StatMathUtils.round1(cpuUsageMax))
+                .cpuIowaitAvg(StatMathUtils.round1(cpuIowaitAvg))
+                .build();
+        instanceStatCpuRepository.save(stat);
+    }
+
+    private void aggregateMemory1H(Instance instance, LocalDateTime from, LocalDateTime to) {
+        List<InstanceStatMemory> stats = instanceStatMemoryRepository
+                .findAllByInstanceIdAndTimeWindowAndStatTimeBetweenOrderByStatTimeAsc(
+                        instance.getId(), TIME_WINDOW, from.plusSeconds(1), to);
+
+        if (stats.isEmpty()) {
+            return;
+        }
+
+        Double memAvailableAvg = StatMathUtils.avgLong(stats.stream().map(InstanceStatMemory::getMemAvailableAvg).toList());
+        Long memAvailableMin = stats.stream()
+                .map(InstanceStatMemory::getMemAvailableMin)
+                .filter(Objects::nonNull)
+                .min(Long::compareTo)
+                .orElse(null);
+        Double swapUsedMax = StatMathUtils.max(stats.stream().map(InstanceStatMemory::getSwapUsedMax).toList());
+
+        InstanceStatMemory stat = InstanceStatMemory.builder()
+                .instance(instance)
+                .timeWindow(TIME_WINDOW_1H)
+                .statTime(to)
+                .memAvailableAvg(memAvailableAvg != null ? Math.round(memAvailableAvg) : null)
+                .memAvailableMin(memAvailableMin)
+                .swapUsedMax(StatMathUtils.round1(swapUsedMax))
+                .build();
+        instanceStatMemoryRepository.save(stat);
+    }
+
+    private void aggregateDisk1H(Instance instance, LocalDateTime from, LocalDateTime to) {
+        List<InstanceStatDisk> stats = instanceStatDiskRepository
+                .findAllByInstanceIdAndTimeWindowAndStatTimeBetweenOrderByStatTimeAsc(
+                        instance.getId(), TIME_WINDOW, from.plusSeconds(1), to);
+
+        if (stats.isEmpty()) {
+            return;
+        }
+
+        Double readIopsAvg = StatMathUtils.avg(stats.stream().map(InstanceStatDisk::getReadIopsAvg).toList());
+        Double writeIopsAvg = StatMathUtils.avg(stats.stream().map(InstanceStatDisk::getWriteIopsAvg).toList());
+        Double diskUtilMax = StatMathUtils.max(stats.stream().map(InstanceStatDisk::getDiskUtilMax).toList());
+        Double diskUsedPctMax = StatMathUtils.max(stats.stream().map(InstanceStatDisk::getDiskUsedPctMax).toList());
+
+        InstanceStatDisk stat = InstanceStatDisk.builder()
+                .instance(instance)
+                .timeWindow(TIME_WINDOW_1H)
+                .statTime(to)
+                .readIopsAvg(StatMathUtils.round1(readIopsAvg))
+                .writeIopsAvg(StatMathUtils.round1(writeIopsAvg))
+                .diskUtilMax(StatMathUtils.round1(diskUtilMax))
+                .diskUsedPctMax(StatMathUtils.round1(diskUsedPctMax))
+                .build();
+        instanceStatDiskRepository.save(stat);
+    }
+
+    private void aggregateNetwork1H(Instance instance, LocalDateTime from, LocalDateTime to) {
+        List<InstanceStatNetwork> stats = instanceStatNetworkRepository
+                .findAllByInstanceIdAndTimeWindowAndStatTimeBetweenOrderByStatTimeAsc(
+                        instance.getId(), TIME_WINDOW, from.plusSeconds(1), to);
+
+        if (stats.isEmpty()) {
+            return;
+        }
+
+        Double rxMbpsAvg = StatMathUtils.avg(stats.stream().map(InstanceStatNetwork::getRxMbpsAvg).toList());
+        Double txMbpsAvg = StatMathUtils.avg(stats.stream().map(InstanceStatNetwork::getTxMbpsAvg).toList());
+        int errorsSum = stats.stream()
+                .map(InstanceStatNetwork::getErrorsSum)
+                .filter(Objects::nonNull)
+                .mapToInt(Integer::intValue)
+                .sum();
+
+        InstanceStatNetwork stat = InstanceStatNetwork.builder()
+                .instance(instance)
+                .timeWindow(TIME_WINDOW_1H)
+                .statTime(to)
+                .rxMbpsAvg(StatMathUtils.round1(rxMbpsAvg))
+                .txMbpsAvg(StatMathUtils.round1(txMbpsAvg))
+                .errorsSum(errorsSum)
                 .build();
         instanceStatNetworkRepository.save(stat);
     }
