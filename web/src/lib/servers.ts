@@ -200,4 +200,71 @@ export function subscribeServerMetricStream(
   return () => source.close()
 }
 
+export interface ServerHistoryJvmSummary {
+  heapUsedAvgBytes: number
+  heapUsedMaxBytes: number
+  oldGenUsedAvgBytes: number
+  gcPauseCountSum: number
+  gcPauseSecondsSum: number
+  threadBlockedMax: number
+}
+
+export interface ServerHistoryHttpEndpointSummary {
+  uri: string
+  method: string
+  totalRequestsCount: number
+  rpsAvg: number
+  rpsMax: number
+  avgResTimeMs: number
+  maxResTimeMs: number
+  errorRateAvg: number
+}
+
+export interface ServerHistoryHikariCpPoolSummary {
+  poolName: string
+  activePoolAvg: number
+  activePoolMax: number
+  pendingThreadsMax: number
+  timeoutCountSum: number
+}
+
+export interface ServerHistoryThreadPoolSummary {
+  name: string
+  activeThreadsAvg: number
+  maxThreadsAvg: number
+  queuedTasksAvg: number
+  queuedTasksMax: number
+}
+
+export interface ServerHistorySummary {
+  jvm: ServerHistoryJvmSummary | null
+  httpEndpoints: ServerHistoryHttpEndpointSummary[]
+  hikaricpPools: ServerHistoryHikariCpPoolSummary[]
+  executors: ServerHistoryThreadPoolSummary[]
+}
+
+export interface ServerHistorySeriesPoint {
+  statTime: string
+  jvmHeapUsedBytes: number | null
+  jvmHeapMaxBytes: number | null
+  jvmOldGenUsedBytes: number | null
+  gcPauseSecondsSum: number | null
+  totalRpsAvg: number | null
+  avgLatencyMs: number | null
+  hikaricpActiveAvg: number | null
+  executorActiveAvg: number | null
+}
+
+export interface ServerHistoryMetrics {
+  serverId: number
+  date: string
+  summary: ServerHistorySummary
+  series: ServerHistorySeriesPoint[]
+}
+
+export function getServerHistoryMetrics(serverId: number, date?: string) {
+  const query = date ? `?date=${date}` : ''
+  return api.get<ServerHistoryMetrics>(`/api/v1/servers/${serverId}/metrics/history${query}`)
+}
+
 export type { ServerItem }

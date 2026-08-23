@@ -5,22 +5,46 @@ import { ApiError } from '../lib/api'
 import {
   getInstanceHistoryMetrics,
   getInstances,
+  getServers,
   type InstanceHistoryMetrics,
   type InstanceListItem,
+  type ServerItem,
 } from '../lib/instances'
+import { getServerHistoryMetrics, type ServerHistoryMetrics } from '../lib/servers'
 
-type MetricOption = {
-  key: 'cpu' | 'memory' | 'disk' | 'network'
+type InstanceMetricKey = 'cpu' | 'memory' | 'disk' | 'network'
+type ServerMetricKey = 'heap' | 'rps' | 'latency' | 'hikari'
+
+type InstanceMetricOption = {
+  target: 'instance'
+  key: InstanceMetricKey
   label: string
   unit: string
   seriesKey: keyof NonNullable<InstanceHistoryMetrics['series'][number]>
 }
 
-const METRIC_OPTIONS: MetricOption[] = [
-  { key: 'cpu', label: 'CPU 사용률', unit: '%', seriesKey: 'cpuUsageAvg' },
-  { key: 'memory', label: '가용 메모리', unit: 'GB', seriesKey: 'memAvailableAvg' },
-  { key: 'disk', label: '디스크 사용률', unit: '%', seriesKey: 'diskUsedPctMax' },
-  { key: 'network', label: '네트워크 수신', unit: 'Mbps', seriesKey: 'rxMbpsAvg' },
+type ServerMetricOption = {
+  target: 'server'
+  key: ServerMetricKey
+  label: string
+  unit: string
+  seriesKey: keyof NonNullable<ServerHistoryMetrics['series'][number]>
+}
+
+type MetricOption = InstanceMetricOption | ServerMetricOption
+
+const INSTANCE_METRIC_OPTIONS: InstanceMetricOption[] = [
+  { target: 'instance', key: 'cpu', label: 'CPU 사용률', unit: '%', seriesKey: 'cpuUsageAvg' },
+  { target: 'instance', key: 'memory', label: '가용 메모리', unit: 'GB', seriesKey: 'memAvailableAvg' },
+  { target: 'instance', key: 'disk', label: '디스크 사용률', unit: '%', seriesKey: 'diskUsedPctMax' },
+  { target: 'instance', key: 'network', label: '네트워크 수신', unit: 'Mbps', seriesKey: 'rxMbpsAvg' },
+]
+
+const SERVER_METRIC_OPTIONS: ServerMetricOption[] = [
+  { target: 'server', key: 'heap', label: 'JVM 힙 사용량', unit: 'MB', seriesKey: 'jvmHeapUsedBytes' },
+  { target: 'server', key: 'rps', label: 'HTTP RPS', unit: 'req/s', seriesKey: 'totalRpsAvg' },
+  { target: 'server', key: 'latency', label: 'HTTP 평균 응답시간', unit: 'ms', seriesKey: 'avgLatencyMs' },
+  { target: 'server', key: 'hikari', label: 'HikariCP 활성 커넥션', unit: '개', seriesKey: 'hikaricpActiveAvg' },
 ]
 
 function formatDate(d: Date) {
@@ -43,9 +67,12 @@ function shortTime(iso: string) {
 export default function HistoryPage() {
   const [instances, setInstances] = useState<InstanceListItem[]>([])
   const [instanceId, setInstanceId] = useState<number | null>(null)
+  const [apps, setApps] = useState<ServerItem[]>([])
+  const [serverId, setServerId] = useState<number | null>(null)
   const [date, setDate] = useState(yesterday())
-  const [metric, setMetric] = useState<MetricOption>(METRIC_OPTIONS[0])
-  const [data, setData] = useState<InstanceHistoryMetrics | null>(null)
+  const [metric, setMetric] = useState<MetricOption>(INSTANCE_METRIC_OPTIONS[0])
+  const [instanceData, setInstanceData] = useState<InstanceHistoryMetrics | null>(null)
+  const [serverData, setServerData] = useState<ServerHistoryMetrics | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -58,60 +85,149 @@ export default function HistoryPage() {
       .catch((err) => setError(err instanceof ApiError ? err.message : '인스턴스 목록을 불러오지 못했습니다.'))
   }, [])
 
-  const fetchHistory = () => {
+  useEffect(() => {
     if (instanceId === null) return
+    setServerId(null)
+    getServers(instanceId)
+      .then(setApps)
+      .catch(() => setApps([]))
+  }, [instanceId])
+
+  const fetchHistory = () => {
     setError(null)
     setLoading(true)
+
+    if (metric.target === 'server') {
+      if (serverId === null) {
+        setLoading(false)
+        return
+      }
+      getServerHistoryMetrics(serverId, date)
+        .then((res) => {
+          setServerData(res)
+          setInstanceData(null)
+        })
+        .catch((err) => {
+          setServerData(null)
+          setError(err instanceof ApiError ? err.message : '과거 데이터를 불러오지 못했습니다.')
+        })
+        .finally(() => setLoading(false))
+      return
+    }
+
+    if (instanceId === null) {
+      setLoading(false)
+      return
+    }
     getInstanceHistoryMetrics(instanceId, date)
-      .then(setData)
+      .then((res) => {
+        setInstanceData(res)
+        setServerData(null)
+      })
       .catch((err) => {
-        setData(null)
+        setInstanceData(null)
         setError(err instanceof ApiError ? err.message : '과거 데이터를 불러오지 못했습니다.')
       })
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
-    if (instanceId !== null) fetchHistory()
+    if (metric.target === 'instance' && instanceId !== null) fetchHistory()
+    if (metric.target === 'server' && serverId !== null) fetchHistory()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instanceId])
+  }, [instanceId, serverId, metric.target])
 
   const selectedInstance = instances.find((i) => i.instanceId === instanceId)
+  const selectedApp = apps.find((a) => a.serverId === serverId)
 
   const chartData = useMemo(() => {
-    if (!data) return []
-    return data.series.map((p) => {
+    if (metric.target === 'instance') {
+      if (!instanceData) return []
+      return instanceData.series.map((p) => {
+        const raw = p[metric.seriesKey]
+        let value = raw === null || raw === undefined ? null : Number(raw)
+        if (value !== null && metric.key === 'memory') {
+          value = Number((value / 1024 / 1024 / 1024).toFixed(2))
+        }
+        return { time: shortTime(p.statTime), value }
+      })
+    }
+    if (!serverData) return []
+    return serverData.series.map((p) => {
       const raw = p[metric.seriesKey]
       let value = raw === null || raw === undefined ? null : Number(raw)
-      if (value !== null && metric.key === 'memory') {
-        value = Number((value / 1024 / 1024 / 1024).toFixed(2))
+      if (value !== null && metric.key === 'heap') {
+        value = Number((value / 1024 / 1024).toFixed(1))
       }
       return { time: shortTime(p.statTime), value }
     })
-  }, [data, metric])
+  }, [instanceData, serverData, metric])
 
   const stats = useMemo(() => {
-    if (!data) return null
-    const { cpu, memory, disk, network } = data.summary
+    if (metric.target === 'instance') {
+      if (!instanceData) return null
+      const { cpu, memory, disk, network } = instanceData.summary
+      switch (metric.key) {
+        case 'cpu':
+          return cpu ? { avg: cpu.cpuUsageAvg, max: cpu.cpuUsageMax, min: null } : null
+        case 'memory':
+          return memory
+            ? {
+                avg: Number((memory.memAvailableAvg / 1024 / 1024 / 1024).toFixed(2)),
+                max: null,
+                min: Number((memory.memAvailableMin / 1024 / 1024 / 1024).toFixed(2)),
+              }
+            : null
+        case 'disk':
+          return disk ? { avg: disk.readIopsAvg, max: disk.diskUsedPctMax, min: null } : null
+        case 'network':
+          return network ? { avg: network.rxMbpsAvg, max: network.txMbpsAvg, min: null } : null
+        default:
+          return null
+      }
+    }
+
+    if (!serverData) return null
+    const { jvm, httpEndpoints } = serverData.summary
     switch (metric.key) {
-      case 'cpu':
-        return cpu ? { avg: cpu.cpuUsageAvg, max: cpu.cpuUsageMax, min: null } : null
-      case 'memory':
-        return memory
+      case 'heap':
+        return jvm
           ? {
-              avg: Number((memory.memAvailableAvg / 1024 / 1024 / 1024).toFixed(2)),
-              max: null,
-              min: Number((memory.memAvailableMin / 1024 / 1024 / 1024).toFixed(2)),
+              avg: Number((jvm.heapUsedAvgBytes / 1024 / 1024).toFixed(1)),
+              max: Number((jvm.heapUsedMaxBytes / 1024 / 1024).toFixed(1)),
+              min: null,
             }
           : null
-      case 'disk':
-        return disk ? { avg: disk.readIopsAvg, max: disk.diskUsedPctMax, min: null } : null
-      case 'network':
-        return network ? { avg: network.rxMbpsAvg, max: network.txMbpsAvg, min: null } : null
+      case 'rps': {
+        if (httpEndpoints.length === 0) return null
+        const avg = httpEndpoints.reduce((sum, e) => sum + e.rpsAvg, 0) / httpEndpoints.length
+        const max = Math.max(...httpEndpoints.map((e) => e.rpsMax))
+        return { avg: Number(avg.toFixed(1)), max: Number(max.toFixed(1)), min: null }
+      }
+      case 'latency': {
+        if (httpEndpoints.length === 0) return null
+        const avg = httpEndpoints.reduce((sum, e) => sum + e.avgResTimeMs, 0) / httpEndpoints.length
+        const max = Math.max(...httpEndpoints.map((e) => e.maxResTimeMs))
+        return { avg: Number(avg.toFixed(1)), max: Number(max.toFixed(1)), min: null }
+      }
+      case 'hikari': {
+        const pools = serverData.summary.hikaricpPools
+        if (pools.length === 0) return null
+        const avg = pools.reduce((sum, p) => sum + p.activePoolAvg, 0) / pools.length
+        const max = Math.max(...pools.map((p) => p.activePoolMax))
+        return { avg: Number(avg.toFixed(1)), max, min: null }
+      }
       default:
         return null
     }
-  }, [data, metric])
+  }, [instanceData, serverData, metric])
+
+  const currentMetricOptions = metric.target === 'instance' ? INSTANCE_METRIC_OPTIONS : SERVER_METRIC_OPTIONS
+  const targetLabel = metric.target === 'instance' ? (selectedInstance?.name ?? '—') : (selectedApp?.name ?? '—')
+  const currentDate = metric.target === 'instance' ? (instanceData?.date ?? date) : (serverData?.date ?? date)
+  const hasNoData =
+    (metric.target === 'instance' && instanceData && chartData.every((p) => p.value === null)) ||
+    (metric.target === 'server' && serverData && chartData.every((p) => p.value === null))
 
   return (
     <div>
@@ -130,10 +246,25 @@ export default function HistoryPage() {
           ))}
         </select>
         <select
-          disabled
-          className="rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-400"
+          value={serverId ?? ''}
+          onChange={(e) => {
+            const value = e.target.value
+            if (value === '') {
+              setServerId(null)
+              setMetric(INSTANCE_METRIC_OPTIONS[0])
+            } else {
+              setServerId(Number(value))
+              setMetric(SERVER_METRIC_OPTIONS[0])
+            }
+          }}
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600"
         >
-          <option>앱: 준비 중</option>
+          <option value="">앱: 전체 (호스트 지표)</option>
+          {apps.map((app) => (
+            <option key={app.serverId} value={app.serverId}>
+              {app.name}
+            </option>
+          ))}
         </select>
         <div className="flex items-center gap-2 text-sm text-slate-600">
           <input
@@ -146,10 +277,12 @@ export default function HistoryPage() {
         </div>
         <select
           value={metric.key}
-          onChange={(e) => setMetric(METRIC_OPTIONS.find((m) => m.key === e.target.value) ?? METRIC_OPTIONS[0])}
+          onChange={(e) =>
+            setMetric(currentMetricOptions.find((m) => m.key === e.target.value) ?? currentMetricOptions[0])
+          }
           className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600"
         >
-          {METRIC_OPTIONS.map((m) => (
+          {currentMetricOptions.map((m) => (
             <option key={m.key} value={m.key}>
               {m.label}
             </option>
@@ -158,15 +291,15 @@ export default function HistoryPage() {
         <button
           type="button"
           onClick={fetchHistory}
-          disabled={instanceId === null || loading}
+          disabled={(metric.target === 'instance' ? instanceId === null : serverId === null) || loading}
           className="ml-auto rounded-md bg-brand-500 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-60"
         >
           {loading ? '조회 중...' : '조회'}
         </button>
       </Card>
       <p className="mb-6 text-xs leading-relaxed text-slate-400">
-        인스턴스의 호스트 지표(CPU · 메모리 · 디스크 · 네트워크)를 1시간 단위로 집계된 값으로 조회합니다. 앱(서버) 단위
-        과거 데이터 조회는 아직 제공되지 않습니다.
+        앱을 비워두면 인스턴스의 호스트 지표(CPU · 메모리 · 디스크 · 네트워크), 앱을 고르면 그 앱의 JVM · HTTP ·
+        HikariCP 지표를 1시간 단위로 집계된 값으로 조회합니다.
       </p>
 
       {error && (
@@ -178,9 +311,9 @@ export default function HistoryPage() {
       <div className="flex gap-6">
         <Card className="flex-1 p-6">
           <h2 className="mb-6 font-semibold text-slate-900">
-            {selectedInstance?.name ?? '—'} · {metric.label} · {data?.date ?? date}
+            {targetLabel} · {metric.label} · {currentDate}
           </h2>
-          {data && chartData.every((p) => p.value === null) ? (
+          {hasNoData ? (
             <p className="py-16 text-center text-sm text-slate-400">해당 날짜에 집계된 데이터가 없습니다.</p>
           ) : (
             <div className="h-72">
@@ -219,7 +352,9 @@ export default function HistoryPage() {
             </div>
           </Card>
           <Card className="p-4">
-            <div className="text-xs text-slate-500">{metric.key === 'network' ? '송신 평균' : '최댓값'}</div>
+            <div className="text-xs text-slate-500">
+              {metric.target === 'instance' && metric.key === 'network' ? '송신 평균' : '최댓값'}
+            </div>
             <div className="mt-1 text-2xl font-bold text-warn-600">
               {stats?.max ?? '—'} {stats?.max !== undefined && stats?.max !== null ? metric.unit : ''}
             </div>
