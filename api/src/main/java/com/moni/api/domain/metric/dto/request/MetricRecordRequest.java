@@ -160,6 +160,7 @@ public class MetricRecordRequest {
         private Long jvmHeapUsedBytes;
         private Long jvmHeapMaxBytes;
         private Long jvmOldGenUsedBytes;
+        private Long jvmOldGenMaxBytes;
         private Long gcPauseSecondsCount;
         private Double gcPauseSecondsSum;
         private Double processUptimeSeconds;
@@ -171,14 +172,15 @@ public class MetricRecordRequest {
 
         @Builder
         public ServerMetricPayload(Long jvmHeapUsedBytes, Long jvmHeapMaxBytes, Long jvmOldGenUsedBytes,
-                                   Long gcPauseSecondsCount, Double gcPauseSecondsSum, Double processUptimeSeconds,
-                                   Integer jvmThreadsLive, Integer jvmThreadsBlocked,
+                                   Long jvmOldGenMaxBytes, Long gcPauseSecondsCount, Double gcPauseSecondsSum,
+                                   Double processUptimeSeconds, Integer jvmThreadsLive, Integer jvmThreadsBlocked,
                                    List<HttpEndpointPayload> httpEndpoints,
                                    List<HikariPoolPayload> hikaricpPools,
                                    List<ExecutorPayload> executors) {
             this.jvmHeapUsedBytes = jvmHeapUsedBytes;
             this.jvmHeapMaxBytes = jvmHeapMaxBytes;
             this.jvmOldGenUsedBytes = jvmOldGenUsedBytes;
+            this.jvmOldGenMaxBytes = jvmOldGenMaxBytes;
             this.gcPauseSecondsCount = gcPauseSecondsCount;
             this.gcPauseSecondsSum = gcPauseSecondsSum;
             this.processUptimeSeconds = processUptimeSeconds;
