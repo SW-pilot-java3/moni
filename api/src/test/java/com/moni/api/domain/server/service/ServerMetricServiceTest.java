@@ -248,7 +248,7 @@ class ServerMetricServiceTest {
         assertThat(response.getServerId()).isEqualTo(serverId);
         assertThat(response.getDate()).isEqualTo(yesterday);
 
-        // summary check
+        // summary 요약 검증
         assertThat(response.getSummary()).isNotNull();
         assertThat(response.getSummary().getJvm().getHeapUsedMaxBytes()).isEqualTo(1_000_000_000L);
         assertThat(response.getSummary().getHttpEndpoints()).hasSize(1);
@@ -256,11 +256,75 @@ class ServerMetricServiceTest {
         assertThat(response.getSummary().getHikaricpPools()).hasSize(1);
         assertThat(response.getSummary().getExecutors()).hasSize(1);
 
-        // series check
+        // series 시계열 검증
         assertThat(response.getSeries()).hasSize(1);
         assertThat(response.getSeries().get(0).getStatTime()).isEqualTo(statTime);
         assertThat(response.getSeries().get(0).getJvmHeapUsedBytes()).isEqualTo(500_000_000L);
         assertThat(response.getSeries().get(0).getTotalRpsAvg()).isEqualTo(50.0);
+    }
+
+    @Test
+    @DisplayName("요청 수 가중 평균 기반 평균 응답시간 및 에러율 계산 검증")
+    void getServerHistoryMetrics_weightedAverageCalculation() {
+        // given
+        Long serverId = 100L;
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+        LocalDateTime time1 = yesterday.atTime(10, 0);
+        LocalDateTime time2 = yesterday.atTime(11, 0);
+
+        // 10시 데이터: 10,000건, 10ms, 에러율 0.0
+        StatHttp http1 = StatHttp.builder()
+                .timeWindow("1H")
+                .statTime(time1)
+                .uri("/api/test")
+                .method("GET")
+                .totalRequestsCount(10_000L)
+                .rpsAvg(100.0)
+                .rpsMax(200.0)
+                .avgResTimeMs(10.0)
+                .maxResTimeMs(50.0)
+                .errorRateAvg(0.0)
+                .build();
+
+        // 11시 데이터: 1건, 1000ms, 에러율 1.0 (100%)
+        StatHttp http2 = StatHttp.builder()
+                .timeWindow("1H")
+                .statTime(time2)
+                .uri("/api/test")
+                .method("GET")
+                .totalRequestsCount(1L)
+                .rpsAvg(0.0)
+                .rpsMax(1.0)
+                .avgResTimeMs(1000.0)
+                .maxResTimeMs(1000.0)
+                .errorRateAvg(1.0)
+                .build();
+
+        given(serverRepository.existsById(serverId)).willReturn(true);
+        given(statJvmRepository.findAllByServerIdAndTimeWindowAndStatTimeBetweenOrderByStatTimeAsc(eq(serverId), eq("1H"), any(), any()))
+                .willReturn(Collections.emptyList());
+        given(statHttpRepository.findAllByServerIdAndTimeWindowAndStatTimeBetweenOrderByStatTimeAsc(eq(serverId), eq("1H"), any(), any()))
+                .willReturn(List.of(http1, http2));
+        given(statHikariCpRepository.findAllByServerIdAndTimeWindowAndStatTimeBetweenOrderByStatTimeAsc(eq(serverId), eq("1H"), any(), any()))
+                .willReturn(Collections.emptyList());
+        given(statThreadPoolRepository.findAllByServerIdAndTimeWindowAndStatTimeBetweenOrderByStatTimeAsc(eq(serverId), eq("1H"), any(), any()))
+                .willReturn(Collections.emptyList());
+
+        // when
+        ServerHistoryMetricsResponse response = serverMetricService.getServerHistoryMetrics(serverId, yesterday);
+
+        // then - 요약 통계 가중 평균 검증: (10ms * 10000건 + 1000ms * 1건) / 10001건 ≈ 10.1ms
+        assertThat(response.getSummary().getHttpEndpoints()).hasSize(1);
+        var epSummary = response.getSummary().getHttpEndpoints().get(0);
+        assertThat(epSummary.getTotalRequestsCount()).isEqualTo(10_001L);
+        assertThat(epSummary.getAvgResTimeMs()).isEqualTo(10.1);
+        // 에러율 가중 평균: (0.0 * 10000 + 1.0 * 1) / 10001 ≈ 0.0000999 -> 0.0
+        assertThat(epSummary.getErrorRateAvg()).isEqualTo(0.0);
+
+        // then - 시간대별 시계열 가중 평균 검증
+        assertThat(response.getSeries()).hasSize(2);
+        assertThat(response.getSeries().get(0).getAvgLatencyMs()).isEqualTo(10.0);
+        assertThat(response.getSeries().get(1).getAvgLatencyMs()).isEqualTo(1000.0);
     }
 
     @Test

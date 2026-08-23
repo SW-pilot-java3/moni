@@ -133,9 +133,17 @@ public class ServerMetricService {
             long totalReqCount = list.stream().mapToLong(s -> s.getTotalRequestsCount() != null ? s.getTotalRequestsCount() : 0L).sum();
             double rpsAvg = list.stream().mapToDouble(s -> s.getRpsAvg() != null ? s.getRpsAvg() : 0.0).average().orElse(0.0);
             double rpsMax = list.stream().mapToDouble(s -> s.getRpsMax() != null ? s.getRpsMax() : 0.0).max().orElse(0.0);
-            double avgResTime = list.stream().mapToDouble(s -> s.getAvgResTimeMs() != null ? s.getAvgResTimeMs() : 0.0).average().orElse(0.0);
+
+            double totalResTimeSum = list.stream()
+                    .mapToDouble(s -> (s.getAvgResTimeMs() != null ? s.getAvgResTimeMs() : 0.0) * (s.getTotalRequestsCount() != null ? s.getTotalRequestsCount() : 0L))
+                    .sum();
+            double avgResTime = totalReqCount > 0 ? totalResTimeSum / totalReqCount : 0.0;
             double maxResTime = list.stream().mapToDouble(s -> s.getMaxResTimeMs() != null ? s.getMaxResTimeMs() : 0.0).max().orElse(0.0);
-            double errorRateAvg = list.stream().mapToDouble(s -> s.getErrorRateAvg() != null ? s.getErrorRateAvg() : 0.0).average().orElse(0.0);
+
+            double totalErrorSum = list.stream()
+                    .mapToDouble(s -> (s.getErrorRateAvg() != null ? s.getErrorRateAvg() : 0.0) * (s.getTotalRequestsCount() != null ? s.getTotalRequestsCount() : 0L))
+                    .sum();
+            double errorRateAvg = totalReqCount > 0 ? totalErrorSum / totalReqCount : 0.0;
 
             httpSummaries.add(ServerHistorySummaryDto.HttpEndpointSummary.builder()
                     .uri(first.getUri())
@@ -241,7 +249,13 @@ public class ServerMetricService {
             Double avgLatency = null;
             if (hList != null && !hList.isEmpty()) {
                 totalRps = hList.stream().mapToDouble(s -> s.getRpsAvg() != null ? s.getRpsAvg() : 0.0).sum();
-                avgLatency = hList.stream().mapToDouble(s -> s.getAvgResTimeMs() != null ? s.getAvgResTimeMs() : 0.0).average().orElse(0.0);
+                long hourlyTotalReqCount = hList.stream()
+                        .mapToLong(s -> s.getTotalRequestsCount() != null ? s.getTotalRequestsCount() : 0L)
+                        .sum();
+                double hourlyResTimeSum = hList.stream()
+                        .mapToDouble(s -> (s.getAvgResTimeMs() != null ? s.getAvgResTimeMs() : 0.0) * (s.getTotalRequestsCount() != null ? s.getTotalRequestsCount() : 0L))
+                        .sum();
+                avgLatency = hourlyTotalReqCount > 0 ? hourlyResTimeSum / hourlyTotalReqCount : 0.0;
             }
 
             List<StatHikariCp> hkList = hikariByTime.get(statTime);
