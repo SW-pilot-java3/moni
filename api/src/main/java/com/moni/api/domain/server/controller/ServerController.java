@@ -15,6 +15,8 @@ import com.moni.api.domain.server.service.ServerThresholdService;
 import com.moni.api.domain.server.service.ServerSseService;
 import com.moni.api.global.response.ApiResponse;
 import jakarta.validation.Valid;
+import com.moni.api.domain.server.dto.response.ServerHistoryMetricsResponse;
+import java.time.LocalDate;
 import java.util.List;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -102,6 +104,14 @@ public class ServerController {
             @PathVariable Long serverId,
             @RequestParam(defaultValue = "30") @Min(1) @Max(100) int limit) {
         ServerRealtimeMetricsResponse response = serverMetricService.getServerRealtimeMetrics(serverId, limit);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{serverId}/metrics/history")
+    public ResponseEntity<ApiResponse<ServerHistoryMetricsResponse>> getServerHistoryMetrics(
+            @PathVariable Long serverId,
+            @RequestParam(required = false) LocalDate date) {
+        ServerHistoryMetricsResponse response = serverMetricService.getServerHistoryMetrics(serverId, date);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
