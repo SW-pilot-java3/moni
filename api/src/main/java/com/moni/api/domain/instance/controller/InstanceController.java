@@ -14,6 +14,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -73,6 +74,15 @@ public class InstanceController {
                                                                                                          @AuthenticationPrincipal Long userId) {
         List<InstanceRealtimeMetricResponse> response = instanceService.getRecentRealtimeMetrics(instanceId, userId);
         return ResponseEntity.status(HttpStatus.OK).body(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{instanceId}/metrics/history")
+    public ResponseEntity<ApiResponse<InstanceHistoryMetricsResponse>> getInstanceHistoryMetrics(
+            @PathVariable Long instanceId,
+            @AuthenticationPrincipal Long userId,
+            @RequestParam(required = false) LocalDate date) {
+        InstanceHistoryMetricsResponse response = instanceService.getInstanceHistoryMetrics(instanceId, userId, date);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @GetMapping(value = "/{instanceId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
