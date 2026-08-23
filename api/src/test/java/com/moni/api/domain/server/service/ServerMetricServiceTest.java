@@ -268,6 +268,7 @@ class ServerMetricServiceTest {
     void getServerHistoryMetrics_weightedAverageCalculation() {
         // given
         Long serverId = 100L;
+        Server mockServer = Mockito.mock(Server.class);
         LocalDate yesterday = LocalDate.now().minusDays(1);
         LocalDateTime time1 = yesterday.atTime(10, 0);
         LocalDateTime time2 = yesterday.atTime(11, 0);
@@ -300,7 +301,7 @@ class ServerMetricServiceTest {
                 .errorRateAvg(1.0)
                 .build();
 
-        given(serverRepository.existsById(serverId)).willReturn(true);
+        given(serverValidator.validateAndGetServer(serverId, userId)).willReturn(mockServer);
         given(statJvmRepository.findAllByServerIdAndTimeWindowAndStatTimeBetweenOrderByStatTimeAsc(eq(serverId), eq("1H"), any(), any()))
                 .willReturn(Collections.emptyList());
         given(statHttpRepository.findAllByServerIdAndTimeWindowAndStatTimeBetweenOrderByStatTimeAsc(eq(serverId), eq("1H"), any(), any()))
@@ -311,7 +312,7 @@ class ServerMetricServiceTest {
                 .willReturn(Collections.emptyList());
 
         // when
-        ServerHistoryMetricsResponse response = serverMetricService.getServerHistoryMetrics(serverId, yesterday);
+        ServerHistoryMetricsResponse response = serverMetricService.getServerHistoryMetrics(serverId, userId, yesterday);
 
         // then - 요약 통계 가중 평균 검증: (10ms * 10000건 + 1000ms * 1건) / 10001건 ≈ 10.1ms
         assertThat(response.getSummary().getHttpEndpoints()).hasSize(1);
