@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from 'recharts'
 import Card from '../ui/Card'
+import CustomChartTooltip from './CustomChartTooltip'
 import type { HttpEndpointMetric } from '../../lib/servers'
 import { getTone, DEFAULT_THRESHOLDS } from '../../lib/thresholdUtils'
 
@@ -78,7 +79,7 @@ export default function HttpApiTab({
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} interval="preserveStartEnd" minTickGap={45} />
                 <YAxis yAxisId="rps" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={36} />
                 <YAxis yAxisId="latency" orientation="right" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={40} />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: '#e2e8f0' }} />
+                <Tooltip content={<CustomChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Area
                   yAxisId="rps"

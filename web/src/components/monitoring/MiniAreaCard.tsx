@@ -1,5 +1,6 @@
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import Card from '../ui/Card'
+import CustomChartTooltip from './CustomChartTooltip'
 
 interface StatCell {
   label: string
@@ -89,7 +90,7 @@ export default function MiniAreaCard<T extends { time: string }>({
               minTickGap={45}
             />
             <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={40} />
-            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: '#e2e8f0' }} />
+            <Tooltip content={<CustomChartTooltip />} />
             <Area
               type="monotone"
               dataKey={key}
