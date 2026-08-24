@@ -71,9 +71,9 @@ export default function MiniAreaCard<T extends { time: string }>({
         </div>
       </div>
 
-      <div className="flex-1 w-full min-h-[160px] pt-1">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+      <div className="flex-1 w-full min-h-[160px] pt-1 outline-none [&_*]:outline-none">
+        <ResponsiveContainer width="100%" height="100%" style={{ outline: 'none' }}>
+          <AreaChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} style={{ outline: 'none' }}>
             <defs>
               <linearGradient id={`grad-${key}`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={color} stopOpacity={0.25} />

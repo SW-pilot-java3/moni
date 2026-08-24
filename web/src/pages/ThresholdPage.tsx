@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useDialog } from '../lib/dialog'
 import Card from '../components/ui/Card'
 import { ApiError } from '../lib/api'
 import {
@@ -68,6 +69,7 @@ interface EditableRow {
 }
 
 export default function ThresholdPage() {
+  const dialog = useDialog()
   const { scope } = useParams<{ scope?: string }>()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -177,8 +179,15 @@ export default function ThresholdPage() {
     )
   }
 
-  const handleResetToDefaults = () => {
-    if (!confirm('모든 메트릭의 임계치를 기본 권장값으로 초기화하시겠습니까? (저장 버튼을 눌러야 최종 반영됩니다)')) return
+  const handleResetToDefaults = async () => {
+    const ok = await dialog.confirm(
+      '모든 메트릭의 임계치를 기본 권장값으로 초기화하시겠습니까? (저장 버튼을 눌러야 최종 반영됩니다)',
+      {
+        title: '기본값으로 복원',
+        confirmLabel: '초기화',
+      },
+    )
+    if (!ok) return
     setSaved(false)
     setRows((prev) =>
       prev.map((r) => ({

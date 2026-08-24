@@ -83,18 +83,36 @@ export default function AppLinkPage() {
 
   const selectedInstance = instances.find((i) => i.instanceId === instanceId)
 
-  const handleAddServer = async () => {
-    if (instanceId === null || !appName.trim() || !port.trim()) return
+  const handleAddServer = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    if (instanceId === null || instances.length === 0) {
+      setSubmitError('연동할 대상 인스턴스를 선택해주세요.')
+      return
+    }
+    if (!appName.trim()) {
+      setSubmitError('애플리케이션 이름을 입력해주세요.')
+      return
+    }
+    if (!port.trim()) {
+      setSubmitError('서버 포트 번호를 입력해주세요.')
+      return
+    }
+    const portNum = Number(port)
+    if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+      setSubmitError('포트 번호는 1에서 65535 사이의 숫자여야 합니다.')
+      return
+    }
+
     setSubmitError(null)
     setSubmitting(true)
     try {
-      const server = await createServer(instanceId, appName.trim(), Number(port))
+      const server = await createServer(instanceId, appName.trim(), portNum)
       const key = await createApiKey(server.serverId)
       setIssuedKey({
         serverId: server.serverId,
         apiKey: key.apiKey,
         appName: server.name,
-        port: Number(port),
+        port: portNum,
         instanceName: selectedInstance?.name || '선택된 인스턴스',
       })
       // 등록 완료 후 2단계로 전환
@@ -210,7 +228,7 @@ moni.server-url=https://<moni-api-domain>`
               </div>
             )}
 
-            <div className="space-y-4">
+            <form onSubmit={handleAddServer} className="space-y-4">
               {/* 대상 인스턴스 선택 */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -273,9 +291,8 @@ moni.server-url=https://<moni-api-domain>`
 
               <div className="pt-2">
                 <button
-                  type="button"
-                  onClick={handleAddServer}
-                  disabled={submitting || instanceId === null || !appName.trim() || !port.trim()}
+                  type="submit"
+                  disabled={submitting}
                   className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 py-2.5 text-sm font-semibold text-white hover:bg-brand-600 shadow-sm transition-colors disabled:opacity-60"
                 >
                   <span>{submitting ? '등록 및 키 발급 중...' : '앱 등록하고 API Key 발급받기'}</span>
@@ -284,7 +301,7 @@ moni.server-url=https://<moni-api-domain>`
                   </svg>
                 </button>
               </div>
-            </div>
+            </form>
           </Card>
 
           {/* 스타터 자동 수집 지표 안내 카드 */}
