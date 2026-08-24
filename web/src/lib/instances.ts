@@ -105,3 +105,34 @@ export function subscribeInstanceMetricStream(
 
   return () => source.close()
 }
+
+export interface InstanceHistorySeriesPoint {
+  statTime: string
+  cpuUsageAvg: number | null
+  cpuUsageMax: number | null
+  memAvailableAvg: number | null
+  readIopsAvg: number | null
+  writeIopsAvg: number | null
+  diskUsedPctMax: number | null
+  rxMbpsAvg: number | null
+  txMbpsAvg: number | null
+}
+
+export interface InstanceHistorySummary {
+  cpu: { cpuUsageAvg: number; cpuUsageMax: number; cpuIowaitAvg: number } | null
+  memory: { memAvailableAvg: number; memAvailableMin: number; swapUsedMax: number } | null
+  disk: { readIopsAvg: number; writeIopsAvg: number; diskUtilMax: number; diskUsedPctMax: number } | null
+  network: { rxMbpsAvg: number; txMbpsAvg: number; errorsSum: number } | null
+}
+
+export interface InstanceHistoryMetrics {
+  instanceId: number
+  date: string
+  summary: InstanceHistorySummary
+  series: InstanceHistorySeriesPoint[]
+}
+
+export function getInstanceHistoryMetrics(instanceId: number, date?: string) {
+  const query = date ? `?date=${date}` : ''
+  return api.get<InstanceHistoryMetrics>(`/api/v1/instances/${instanceId}/metrics/history${query}`)
+}
