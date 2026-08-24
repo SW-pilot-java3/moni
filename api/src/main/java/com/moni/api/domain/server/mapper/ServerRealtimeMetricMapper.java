@@ -21,7 +21,12 @@ public class ServerRealtimeMetricMapper {
         Double calculate(String uri, String method, long currentCount);
     }
 
-    private ServerRealtimeMetricMapper() {
+    public static boolean isValidEndpointUri(String uri) {
+        if (uri == null || uri.isBlank()) {
+            return false;
+        }
+        String trimmed = uri.trim();
+        return !trimmed.equalsIgnoreCase("UNKNOWN") && !trimmed.equalsIgnoreCase("NOT_FOUND");
     }
 
     public static ServerRealtimeMetric toEntity(Long serverId, LocalDateTime collectedAt,
@@ -49,6 +54,7 @@ public class ServerRealtimeMetricMapper {
 
         if (payload.getHttpEndpoints() != null) {
             List<ServerHttpEndpointMetric> endpoints = payload.getHttpEndpoints().stream()
+                    .filter(ep -> isValidEndpointUri(ep.getUri()))
                     .map(ep -> ServerHttpEndpointMetric.builder()
                             .realtimeMetric(realtimeMetric)
                             .serverId(serverId)
@@ -116,6 +122,7 @@ public class ServerRealtimeMetricMapper {
         List<ServerSseStreamResponse.ServerHttpMetricsDto> httpEndpoints;
         if (payload.getHttpEndpoints() != null) {
             Map<String, List<MetricRecordRequest.HttpEndpointPayload>> grouped = payload.getHttpEndpoints().stream()
+                    .filter(ep -> isValidEndpointUri(ep.getUri()))
                     .collect(Collectors.groupingBy(
                             ep -> ep.getUri() + "|" + ep.getMethod(),
                             LinkedHashMap::new,
@@ -175,11 +182,13 @@ public class ServerRealtimeMetricMapper {
         double totalRequestsSum = 0.0;
         if (payload.getHttpEndpoints() != null) {
             for (MetricRecordRequest.HttpEndpointPayload ep : payload.getHttpEndpoints()) {
-                if (ep.getRequestsCount() != null) {
-                    totalRequestsCount += ep.getRequestsCount();
-                }
-                if (ep.getRequestsSum() != null) {
-                    totalRequestsSum += ep.getRequestsSum();
+                if (isValidEndpointUri(ep.getUri())) {
+                    if (ep.getRequestsCount() != null) {
+                        totalRequestsCount += ep.getRequestsCount();
+                    }
+                    if (ep.getRequestsSum() != null) {
+                        totalRequestsSum += ep.getRequestsSum();
+                    }
                 }
             }
         }

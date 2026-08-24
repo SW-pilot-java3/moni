@@ -1,5 +1,7 @@
 package com.moni.api.domain.server.service;
 
+import static com.moni.api.domain.server.mapper.ServerRealtimeMetricMapper.isValidEndpointUri;
+
 import com.moni.api.domain.server.dto.response.ServerHistoryMetricsResponse;
 import com.moni.api.domain.server.dto.response.ServerHistorySeriesDto;
 import com.moni.api.domain.server.dto.response.ServerHistorySummaryDto;
@@ -60,13 +62,56 @@ public class ServerMetricService {
             return ServerRealtimeMetricsResponse.of(null, Collections.emptyList());
         }
 
-        ServerRealtimeMetric latest = metrics.get(0);
-        ServerRealtimeCurrentDto current = ServerRealtimeCurrentDto.from(latest);
-
-        List<ServerRealtimeSeriesDto> series = metrics.stream()
+        List<ServerRealtimeMetric> sortedMetrics = metrics.stream()
                 .sorted(Comparator.comparing(ServerRealtimeMetric::getCollectedAt))
-                .map(ServerRealtimeSeriesDto::from)
                 .collect(Collectors.toList());
+
+        List<ServerRealtimeSeriesDto> series = new ArrayList<>();
+        Map<String, Long> prevEndpointCounts = new LinkedHashMap<>();
+        LocalDateTime prevCollectedAt = null;
+
+        for (int i = 0; i < sortedMetrics.size(); i++) {
+            ServerRealtimeMetric m = sortedMetrics.get(i);
+            double pointTotalRps = 0.0;
+
+            if (prevCollectedAt != null && m.getHttpEndpoints() != null) {
+                long secDiff = java.time.Duration.between(prevCollectedAt, m.getCollectedAt()).getSeconds();
+                if (secDiff > 0) {
+                    for (var ep : m.getHttpEndpoints()) {
+                        if (!isValidEndpointUri(ep.getUri())) {
+                            continue;
+                        }
+                        String epKey = ep.getUri() + "|" + ep.getMethod();
+                        Long prevCount = prevEndpointCounts.get(epKey);
+                        long curCount = ep.getRequestsCount() != null ? ep.getRequestsCount() : 0L;
+                        if (prevCount != null && curCount >= prevCount) {
+                            pointTotalRps += (double) (curCount - prevCount) / secDiff;
+                        }
+                    }
+                }
+            }
+
+            if (m.getHttpEndpoints() != null) {
+                for (var ep : m.getHttpEndpoints()) {
+                    if (!isValidEndpointUri(ep.getUri())) {
+                        continue;
+                    }
+                    String epKey = ep.getUri() + "|" + ep.getMethod();
+                    prevEndpointCounts.put(epKey, ep.getRequestsCount() != null ? ep.getRequestsCount() : 0L);
+                }
+            }
+            prevCollectedAt = m.getCollectedAt();
+
+            series.add(ServerRealtimeSeriesDto.from(m, pointTotalRps));
+        }
+
+        if (series.size() > 1 && series.get(0).getTotalRps() == 0.0 && series.get(1).getTotalRps() > 0.0) {
+            series.set(0, ServerRealtimeSeriesDto.from(sortedMetrics.get(0), series.get(1).getTotalRps()));
+        }
+
+        ServerRealtimeMetric latest = sortedMetrics.get(sortedMetrics.size() - 1);
+        ServerRealtimeMetric secondLatest = sortedMetrics.size() > 1 ? sortedMetrics.get(sortedMetrics.size() - 2) : null;
+        ServerRealtimeCurrentDto current = ServerRealtimeCurrentDto.from(latest, secondLatest);
 
         return ServerRealtimeMetricsResponse.of(current, series);
     }
