@@ -18,8 +18,10 @@ import com.moni.api.domain.instance.repository.InstanceNetworkMetricsRepository;
 import com.moni.api.domain.instance.repository.InstanceRealtimeMetricRepository;
 import com.moni.api.domain.instance.repository.InstanceRepository;
 import com.moni.api.global.error.exception.CustomException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -65,10 +67,9 @@ public class InstanceRealtimeMetricService {
                 .swapFreeBytes(payload.swapFreeBytes())
                 .build();
 
-        CpuMetrics previousCpuMetrics = instanceRealtimeMetricRepository
-                .findFirstByInstanceIdAndCollectedAtLessThanOrderByCollectedAtDesc(instanceId, request.collectedAt())
-                .map(InstanceRealtimeMetric::getCpuMetrics)
-                .orElse(null);
+        Optional<InstanceRealtimeMetric> previousRealtimeMetric = instanceRealtimeMetricRepository
+                .findFirstByInstanceIdAndCollectedAtLessThanOrderByCollectedAtDesc(instanceId, request.collectedAt());
+        CpuMetrics previousCpuMetrics = previousRealtimeMetric.map(InstanceRealtimeMetric::getCpuMetrics).orElse(null);
         Double cpuUsagePct = CpuUsageCalculator.calculate(previousCpuMetrics, cpuMetrics);
 
         InstanceRealtimeMetric metric = InstanceRealtimeMetric.builder()
@@ -97,6 +98,7 @@ public class InstanceRealtimeMetricService {
             instanceCpuMetricRepository.save(cpuMetric);
         }
 
+        List<InstanceDiskMetric> diskMetrics = new ArrayList<>();
         for (InstanceRealtimeMetricCreateRequest.DiskDevice diskDevice : payload.disks()) {
             InstanceDiskMetric diskMetric = InstanceDiskMetric.builder()
                     .realtimeMetric(metric)
@@ -109,6 +111,7 @@ public class InstanceRealtimeMetricService {
                     .ioTimeSecondsTotal(diskDevice.ioTimeSecondsTotal())
                     .build();
             instanceDiskMetricsRepository.save(diskMetric);
+            diskMetrics.add(diskMetric);
         }
 
         List<InstanceFileSystemMetric> fileSystemMetrics = new ArrayList<>();
@@ -124,6 +127,7 @@ public class InstanceRealtimeMetricService {
             fileSystemMetrics.add(fileSystemMetric);
         }
 
+        List<InstanceNetworkMetric> networkMetrics = new ArrayList<>();
         for (InstanceRealtimeMetricCreateRequest.NetworkInterfaceMetric networkInterface : payload.networks()) {
             InstanceNetworkMetric networkMetric = InstanceNetworkMetric.builder()
                     .realtimeMetric(metric)
@@ -135,10 +139,22 @@ public class InstanceRealtimeMetricService {
                     .txErrorsTotal(networkInterface.txErrorsTotal())
                     .build();
             instanceNetworkMetricsRepository.save(networkMetric);
+            networkMetrics.add(networkMetric);
         }
 
-        instanceThresholdEvaluationService.evaluate(
-                instanceId, request.collectedAt(), cpuUsagePct, memoryMetrics, fileSystemMetrics);
+        LocalDateTime previousCollectedAt = previousRealtimeMetric.map(InstanceRealtimeMetric::getCollectedAt).orElse(null);
+        List<InstanceDiskMetric> previousDiskMetrics = previousCollectedAt == null ? List.of()
+                : instanceDiskMetricsRepository.findAllByInstanceIdAndCollectedAtBetween(
+                        instanceId, previousCollectedAt, previousCollectedAt);
+        List<InstanceNetworkMetric> previousNetworkMetrics = previousCollectedAt == null ? List.of()
+                : instanceNetworkMetricsRepository.findAllByInstanceIdAndCollectedAtBetween(
+                        instanceId, previousCollectedAt, previousCollectedAt);
+
+        Double diskLatencyMs = DiskLatencyCalculator.calculate(previousDiskMetrics, diskMetrics);
+        Double netErrorRate = NetErrorRateCalculator.calculate(previousNetworkMetrics, networkMetrics);
+
+        instanceThresholdEvaluationService.evaluate(instanceId, request.collectedAt(), cpuUsagePct, memoryMetrics,
+                fileSystemMetrics, diskLatencyMs, netErrorRate);
 
         eventPublisher.publishEvent(new InstanceMetricStreamEvent(
                 instanceId, request.collectedAt(), cpuUsagePct, memoryMetrics.getMemAvailableBytes()));

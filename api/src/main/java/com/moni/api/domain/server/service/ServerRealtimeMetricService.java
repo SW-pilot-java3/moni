@@ -6,12 +6,15 @@ import com.moni.api.domain.metric.dto.request.MetricRecordRequest;
 import com.moni.api.domain.server.dto.response.ServerSseStreamResponse;
 import com.moni.api.domain.server.entity.JvmMetric;
 import com.moni.api.domain.server.entity.Server;
+import com.moni.api.domain.server.entity.ServerHttpEndpointMetric;
 import com.moni.api.domain.server.entity.ServerRealtimeMetric;
 import com.moni.api.domain.server.entity.ServerStatus;
 import com.moni.api.domain.server.mapper.ServerRealtimeMetricMapper;
 import com.moni.api.domain.server.repository.ServerRealtimeMetricRepository;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -42,10 +45,12 @@ public class ServerRealtimeMetricService {
             return;
         }
 
-        JvmMetric previousJvmMetric = serverRealtimeMetricRepository
-                .findFirstByServerIdAndCollectedAtLessThanOrderByCollectedAtDesc(server.getId(), collectedAt)
-                .map(ServerRealtimeMetric::getJvmMetric)
-                .orElse(null);
+        Optional<ServerRealtimeMetric> previousRealtimeMetric = serverRealtimeMetricRepository
+                .findFirstByServerIdAndCollectedAtLessThanOrderByCollectedAtDesc(server.getId(), collectedAt);
+        JvmMetric previousJvmMetric = previousRealtimeMetric.map(ServerRealtimeMetric::getJvmMetric).orElse(null);
+        List<ServerHttpEndpointMetric> previousHttpEndpoints = previousRealtimeMetric
+                .map(ServerRealtimeMetric::getHttpEndpoints)
+                .orElse(List.of());
 
         // 서버 실시간 원시 메트릭 DB 저장
         ServerRealtimeMetric realtimeMetric = ServerRealtimeMetricMapper.toEntity(server.getId(), collectedAt, payload);
@@ -61,7 +66,8 @@ public class ServerRealtimeMetricService {
         server.updateLastReceivedAt(collectedAt);
 
         // 임계치 비교
-        serverThresholdEvaluationService.evaluate(server.getId(), collectedAt, realtimeMetric, previousJvmMetric);
+        serverThresholdEvaluationService.evaluate(
+                server.getId(), collectedAt, realtimeMetric, previousJvmMetric, previousHttpEndpoints);
 
         // SSE 브로드캐스트
         ServerSseStreamResponse sseResponse = ServerRealtimeMetricMapper.toSseResponse(

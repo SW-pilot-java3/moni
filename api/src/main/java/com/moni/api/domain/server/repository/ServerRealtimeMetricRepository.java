@@ -19,6 +19,7 @@ public interface ServerRealtimeMetricRepository extends JpaRepository<ServerReal
     List<ServerRealtimeMetric> findAllByServerIdAndCollectedAtBetweenOrderByCollectedAtAsc(
             Long serverId, LocalDateTime from, LocalDateTime to);
 
+    @EntityGraph(attributePaths = {"httpEndpoints"})
     Optional<ServerRealtimeMetric> findFirstByServerIdAndCollectedAtLessThanOrderByCollectedAtDesc(
             Long serverId, LocalDateTime collectedAt);
 }

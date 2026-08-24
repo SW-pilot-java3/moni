@@ -38,6 +38,9 @@ class ServerThresholdEvaluationServiceTest {
     private ServerThresholdRepository serverThresholdRepository;
 
     @Mock
+    private ServerAnomalyDebounceEvaluator serverAnomalyDebounceEvaluator;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @Test
@@ -62,9 +65,11 @@ class ServerThresholdEvaluationServiceTest {
                 .build();
 
         given(serverThresholdRepository.findByServerId(serverId)).willReturn(List.of(heapThreshold));
+        given(serverAnomalyDebounceEvaluator.isConsecutivelyExceeded(serverId, ServerMetricKey.JVM_HEAP_USAGE, heapThreshold))
+                .willReturn(true);
 
         // when
-        serverThresholdEvaluationService.evaluate(serverId, collectedAt, realtimeMetric, null);
+        serverThresholdEvaluationService.evaluate(serverId, collectedAt, realtimeMetric, null, null);
 
         // then
         ArgumentCaptor<ServerMetricThresholdExceededEvent> captor =
@@ -103,9 +108,11 @@ class ServerThresholdEvaluationServiceTest {
                 .build();
 
         given(serverThresholdRepository.findByServerId(serverId)).willReturn(List.of(gcThreshold));
+        given(serverAnomalyDebounceEvaluator.isConsecutivelyExceeded(serverId, ServerMetricKey.GC_PAUSE_TIME, gcThreshold))
+                .willReturn(true);
 
         // when
-        serverThresholdEvaluationService.evaluate(serverId, collectedAt, realtimeMetric, previousJvmMetric);
+        serverThresholdEvaluationService.evaluate(serverId, collectedAt, realtimeMetric, previousJvmMetric, null);
 
         // then
         ArgumentCaptor<ServerMetricThresholdExceededEvent> captor =
@@ -151,7 +158,7 @@ class ServerThresholdEvaluationServiceTest {
                 .willReturn(List.of(hikariThreshold, queueThreshold));
 
         // when
-        serverThresholdEvaluationService.evaluate(serverId, collectedAt, realtimeMetric, null);
+        serverThresholdEvaluationService.evaluate(serverId, collectedAt, realtimeMetric, null, null);
 
         // then
         verify(eventPublisher, never()).publishEvent(any());
@@ -176,7 +183,7 @@ class ServerThresholdEvaluationServiceTest {
         given(serverThresholdRepository.findByServerId(serverId)).willReturn(Collections.emptyList());
 
         // when
-        serverThresholdEvaluationService.evaluate(serverId, collectedAt, realtimeMetric, null);
+        serverThresholdEvaluationService.evaluate(serverId, collectedAt, realtimeMetric, null, null);
 
         // then
         verify(eventPublisher, never()).publishEvent(any());

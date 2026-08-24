@@ -2,6 +2,7 @@ package com.moni.api.domain.server.service;
 
 import com.moni.api.domain.server.dto.ServerMetricThresholdExceededEvent;
 import com.moni.api.domain.server.entity.JvmMetric;
+import com.moni.api.domain.server.entity.ServerHttpEndpointMetric;
 import com.moni.api.domain.server.entity.ServerMetricKey;
 import com.moni.api.domain.server.entity.ServerRealtimeMetric;
 import com.moni.api.domain.server.entity.ServerThreshold;
@@ -9,6 +10,7 @@ import com.moni.api.domain.server.repository.ServerThresholdRepository;
 import com.moni.api.global.threshold.ThresholdSeverity;
 import com.moni.api.global.threshold.ThresholdSeverityResolver;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -23,10 +25,11 @@ import org.springframework.transaction.annotation.Transactional;
 class ServerThresholdEvaluationService {
 
     private final ServerThresholdRepository serverThresholdRepository;
+    private final ServerAnomalyDebounceEvaluator serverAnomalyDebounceEvaluator;
     private final ApplicationEventPublisher eventPublisher;
 
     void evaluate(Long serverId, LocalDateTime collectedAt, ServerRealtimeMetric realtimeMetric,
-            JvmMetric previousJvmMetric) {
+            JvmMetric previousJvmMetric, List<ServerHttpEndpointMetric> previousHttpEndpoints) {
         JvmMetric jvmMetric = realtimeMetric.getJvmMetric();
 
         Double jvmHeapUsagePct = JvmHeapUsageCalculator.calculate(jvmMetric);
@@ -34,6 +37,10 @@ class ServerThresholdEvaluationService {
         Double gcPauseTimeSeconds = GcPauseTimeCalculator.calculate(previousJvmMetric, jvmMetric);
         Double hikariPoolUsagePct = HikariPoolUsageCalculator.calculate(realtimeMetric.getHikaricpPools());
         Double threadPoolQueueUsagePct = ThreadPoolQueueUsageCalculator.calculate(realtimeMetric.getExecutors());
+        Double httpAvgLatencyMs = HttpAvgLatencyCalculator.calculate(
+                previousHttpEndpoints, realtimeMetric.getHttpEndpoints());
+        Double httpErrorRatePct = HttpErrorRateCalculator.calculate(
+                previousHttpEndpoints, realtimeMetric.getHttpEndpoints());
 
         Map<ServerMetricKey, ServerThreshold> thresholds = serverThresholdRepository
                 .findByServerId(serverId).stream()
@@ -44,6 +51,8 @@ class ServerThresholdEvaluationService {
         evaluateMetric(serverId, ServerMetricKey.GC_PAUSE_TIME, gcPauseTimeSeconds, thresholds, collectedAt);
         evaluateMetric(serverId, ServerMetricKey.HIKARICP_POOL_USAGE, hikariPoolUsagePct, thresholds, collectedAt);
         evaluateMetric(serverId, ServerMetricKey.THREADPOOL_QUEUE_USAGE, threadPoolQueueUsagePct, thresholds, collectedAt);
+        evaluateMetric(serverId, ServerMetricKey.HTTP_AVG_LATENCY, httpAvgLatencyMs, thresholds, collectedAt);
+        evaluateMetric(serverId, ServerMetricKey.HTTP_ERROR_RATE, httpErrorRatePct, thresholds, collectedAt);
     }
 
     private void evaluateMetric(Long serverId, ServerMetricKey metricKey, Double value,
@@ -56,6 +65,10 @@ class ServerThresholdEvaluationService {
         ThresholdSeverity severity = ThresholdSeverityResolver.resolve(
                 value, threshold.getWarningValue(), threshold.getCriticalValue());
         if (severity == null) {
+            return;
+        }
+
+        if (!serverAnomalyDebounceEvaluator.isConsecutivelyExceeded(serverId, metricKey, threshold)) {
             return;
         }
 

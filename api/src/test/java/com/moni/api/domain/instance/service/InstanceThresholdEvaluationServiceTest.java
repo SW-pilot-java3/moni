@@ -36,6 +36,9 @@ class InstanceThresholdEvaluationServiceTest {
     private InstanceThresholdRepository instanceThresholdRepository;
 
     @Mock
+    private InstanceAnomalyDebounceEvaluator instanceAnomalyDebounceEvaluator;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @Test
@@ -51,9 +54,12 @@ class InstanceThresholdEvaluationServiceTest {
                 .build();
 
         given(instanceThresholdRepository.findAllByInstanceId(instanceId)).willReturn(List.of(cpuThreshold));
+        given(instanceAnomalyDebounceEvaluator.isConsecutivelyExceeded(instanceId, MetricKey.CPU_USAGE, cpuThreshold))
+                .willReturn(true);
 
         // when
-        instanceThresholdEvaluationService.evaluate(instanceId, collectedAt, 98.0, null, Collections.emptyList());
+        instanceThresholdEvaluationService.evaluate(
+                instanceId, collectedAt, 98.0, null, Collections.emptyList(), null, null);
 
         // then
         ArgumentCaptor<InstanceMetricThresholdExceededEvent> captor =
@@ -84,9 +90,12 @@ class InstanceThresholdEvaluationServiceTest {
                 .build();
 
         given(instanceThresholdRepository.findAllByInstanceId(instanceId)).willReturn(List.of(memThreshold));
+        given(instanceAnomalyDebounceEvaluator.isConsecutivelyExceeded(instanceId, MetricKey.MEM_USAGE, memThreshold))
+                .willReturn(true);
 
         // when
-        instanceThresholdEvaluationService.evaluate(instanceId, collectedAt, null, memoryMetrics, Collections.emptyList());
+        instanceThresholdEvaluationService.evaluate(
+                instanceId, collectedAt, null, memoryMetrics, Collections.emptyList(), null, null);
 
         // then
         ArgumentCaptor<InstanceMetricThresholdExceededEvent> captor =
@@ -116,7 +125,8 @@ class InstanceThresholdEvaluationServiceTest {
         given(instanceThresholdRepository.findAllByInstanceId(instanceId)).willReturn(List.of(diskThreshold));
 
         // when
-        instanceThresholdEvaluationService.evaluate(instanceId, collectedAt, null, null, List.of(filesystem));
+        instanceThresholdEvaluationService.evaluate(
+                instanceId, collectedAt, null, null, List.of(filesystem), null, null);
 
         // then
         verify(eventPublisher, never()).publishEvent(any());
@@ -132,7 +142,8 @@ class InstanceThresholdEvaluationServiceTest {
         given(instanceThresholdRepository.findAllByInstanceId(instanceId)).willReturn(Collections.emptyList());
 
         // when
-        instanceThresholdEvaluationService.evaluate(instanceId, collectedAt, 99.0, null, Collections.emptyList());
+        instanceThresholdEvaluationService.evaluate(
+                instanceId, collectedAt, 99.0, null, Collections.emptyList(), null, null);
 
         // then
         verify(eventPublisher, never()).publishEvent(any());

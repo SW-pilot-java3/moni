@@ -24,10 +24,12 @@ import org.springframework.transaction.annotation.Transactional;
 class InstanceThresholdEvaluationService {
 
     private final InstanceThresholdRepository instanceThresholdRepository;
+    private final InstanceAnomalyDebounceEvaluator instanceAnomalyDebounceEvaluator;
     private final ApplicationEventPublisher eventPublisher;
 
     void evaluate(Long instanceId, LocalDateTime collectedAt, Double cpuUsagePct,
-            MemoryMetrics memoryMetrics, List<InstanceFileSystemMetric> filesystems) {
+            MemoryMetrics memoryMetrics, List<InstanceFileSystemMetric> filesystems,
+            Double diskLatencyMs, Double netErrorRate) {
         Double memUsagePct = MemoryUsageCalculator.calculate(memoryMetrics);
         Double diskUsagePct = DiskUsageCalculator.calculate(filesystems);
 
@@ -38,6 +40,8 @@ class InstanceThresholdEvaluationService {
         evaluateMetric(instanceId, MetricKey.CPU_USAGE, cpuUsagePct, thresholds, collectedAt);
         evaluateMetric(instanceId, MetricKey.MEM_USAGE, memUsagePct, thresholds, collectedAt);
         evaluateMetric(instanceId, MetricKey.DISK_USAGE, diskUsagePct, thresholds, collectedAt);
+        evaluateMetric(instanceId, MetricKey.DISK_LATENCY, diskLatencyMs, thresholds, collectedAt);
+        evaluateMetric(instanceId, MetricKey.NET_ERROR_RATE, netErrorRate, thresholds, collectedAt);
     }
 
     private void evaluateMetric(Long instanceId, MetricKey metricKey, Double value,
@@ -50,6 +54,10 @@ class InstanceThresholdEvaluationService {
         ThresholdSeverity severity = ThresholdSeverityResolver.resolve(
                 value, threshold.getWarningVal(), threshold.getCriticalVal());
         if (severity == null) {
+            return;
+        }
+
+        if (!instanceAnomalyDebounceEvaluator.isConsecutivelyExceeded(instanceId, metricKey, threshold)) {
             return;
         }
 
