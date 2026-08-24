@@ -5,11 +5,13 @@ import { getTone, DEFAULT_THRESHOLDS } from '../../lib/thresholdUtils'
 import {
   getInstanceHistoryMetrics,
   getInstanceRealtimeMetrics,
+  getServerSummaryList,
   subscribeInstanceMetricStream,
   type InstanceHistoryMetrics,
   type InstanceListItem,
   type InstanceRealtimeMetricPoint,
   type ServerItem,
+  type ServerSummaryItem,
 } from '../../lib/instances'
 
 const MAX_SERIES_POINTS = 90 // 최근 15분치 (최대 90개) 유지
@@ -19,6 +21,12 @@ function formatDate(d: Date) {
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function yesterdayDate() {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return formatDate(d)
 }
 
 function formatBytes(bytes: number | null | undefined) {
@@ -37,12 +45,6 @@ function shortTime(iso: string) {
   const m = String(d.getMinutes()).padStart(2, '0')
   const s = String(d.getSeconds()).padStart(2, '0')
   return `${h}:${m}:${s}`
-}
-
-function yesterdayDate() {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return formatDate(d)
 }
 
 function shortDateHour(iso: string) {
@@ -64,11 +66,31 @@ export default function InstanceDetailView({
   const [mode, setMode] = useState<'realtime' | 'history'>('realtime')
   const [historyDate, setHistoryDate] = useState(yesterdayDate())
   const [historyData, setInstanceHistory] = useState<InstanceHistoryMetrics | null>(null)
+  const [appSummaries, setAppSummaries] = useState<Record<number, ServerSummaryItem>>({})
 
   const [metrics, setMetrics] = useState<InstanceRealtimeMetricPoint[]>([])
   const [streamStatus, setStreamStatus] = useState<StreamStatus>('syncing')
 
-  // 1. 실시간 스트림 (과거 지표를 보는 동안에도 백그라운드에서 계속 수신)
+  // 1. 인스턴스 소속 앱 요약 지표 조회 (5분 배치 집계 스냅샷 + 60초 주기 자동 폴링)
+  useEffect(() => {
+    const fetchSummaries = () => {
+      getServerSummaryList(instance.instanceId)
+        .then((list) => {
+          const map: Record<number, ServerSummaryItem> = {}
+          list.forEach((item) => {
+            map[item.serverId] = item
+          })
+          setAppSummaries(map)
+        })
+        .catch(() => {})
+    }
+
+    fetchSummaries()
+    const timer = setInterval(fetchSummaries, 60_000)
+    return () => clearInterval(timer)
+  }, [instance.instanceId])
+
+  // 2. 실시간 스트림 (과거 지표를 보는 동안에도 백그라운드에서 계속 수신)
   useEffect(() => {
     setMetrics([])
     setStreamStatus('syncing')
@@ -112,7 +134,7 @@ export default function InstanceDetailView({
     return unsubscribe
   }, [instance.instanceId])
 
-  // 2. 과거 지표 조회 (모드가 history이거나 날짜 변경 시 호출)
+  // 3. 과거 지표 조회 (모드가 history이거나 날짜 변경 시 호출)
   useEffect(() => {
     if (mode === 'history') {
       getInstanceHistoryMetrics(instance.instanceId, historyDate)
@@ -171,7 +193,7 @@ export default function InstanceDetailView({
           </span>
         </h1>
 
-        {/* 우측 컨트롤 바: [ 실시간 | 과거 지표 ] + [ 최근 15분 / 캘린더 ] + StatusDot */}
+        {/* 우측 컨트롤 바 */}
         <div className="flex flex-wrap items-center gap-2.5">
           {/* 모드 전환 세그먼트 버튼 */}
           <div className="flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
@@ -224,40 +246,83 @@ export default function InstanceDetailView({
 
       {/* 메인 2열 레이아웃: 좌측 앱 목록 + 우측 차트 2x2 */}
       <div className="flex-1 flex gap-4 min-h-0">
-        {/* 좌측: 실행 중인 앱 목록 */}
-        <div className="w-52 shrink-0 flex flex-col gap-3">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-            실행 중인 앱 <span className="text-slate-400 font-normal">· {apps.length}개</span>
+        {/* 좌측: 실행 중인 앱 목록 (지표 포함) */}
+        <div className="w-64 shrink-0 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
+              실행 중인 앱 <span className="text-slate-400 font-normal">· {apps.length}개</span>
+            </div>
+            <span className="text-[10px] text-slate-400 font-medium bg-slate-100 px-1.5 py-0.5 rounded">
+              최근 5분 집계
+            </span>
           </div>
           {apps.length === 0 ? (
             <p className="rounded-lg border border-slate-200 bg-white p-4 text-xs text-slate-400 text-center">
               등록된 앱이 없습니다.
             </p>
           ) : (
-            <div className="flex flex-col gap-2 overflow-y-auto">
-              {apps.map((app) => (
-                <button
-                  key={app.serverId}
-                  type="button"
-                  onClick={() => onSelectApp(app.serverId)}
-                  className="rounded-lg border border-slate-200 bg-white p-3 text-left hover:border-brand-300 hover:shadow-sm transition-all"
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-bold text-slate-900 truncate">{app.name}</span>
-                    <StatusDot
-                      tone={app.status === 'CONNECTED' ? 'normal' : 'idle'}
-                      label={app.status === 'CONNECTED' ? '연결됨' : '대기'}
-                    />
-                  </div>
-                  <div className="text-[11px] text-slate-400">포트 {app.port ?? '—'}</div>
-                  <div className="mt-2 text-[11px] font-medium text-brand-600 flex items-center gap-1">
-                    <span>상세 모니터링</span>
-                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </button>
-              ))}
+            <div className="flex flex-col gap-2.5 overflow-y-auto">
+              {apps.map((app) => {
+                const summary = appSummaries[app.serverId]
+                const httpRps = summary?.http?.rps
+                const httpAvgMs = summary?.http?.avgResTimeMs
+                const heapUsed = summary?.jvm?.heapUsedMB
+                const heapMax = summary?.jvm?.heapUsedMaxMB
+                const dbActive = summary?.hikaricp?.active
+                const dbMax = summary?.hikaricp?.activeMax
+                const dbPending = summary?.hikaricp?.pending ?? 0
+
+                return (
+                  <button
+                    key={app.serverId}
+                    type="button"
+                    onClick={() => onSelectApp(app.serverId)}
+                    className="rounded-lg border border-slate-200 bg-white p-3 text-left hover:border-brand-300 hover:shadow-sm transition-all flex flex-col gap-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-900 truncate">{app.name}</span>
+                      <StatusDot
+                        tone={app.status === 'CONNECTED' ? 'normal' : 'idle'}
+                        label={app.status === 'CONNECTED' ? '연결됨' : '대기'}
+                      />
+                    </div>
+                    <div className="text-[11px] text-slate-400">포트 {app.port ?? '—'}</div>
+
+                    {/* 핵심 3대 지표 (HTTP / Heap / DB Pool) */}
+                    <div className="flex flex-col gap-1 py-2 px-2.5 rounded-md bg-slate-50 border border-slate-100 text-[11px]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 font-medium">HTTP</span>
+                        <span className="font-semibold text-slate-800 font-mono">
+                          {httpRps !== undefined && httpRps !== null ? `${httpRps.toFixed(1)} req/s` : '—'}
+                          {httpAvgMs !== undefined && httpAvgMs !== null ? ` · ${httpAvgMs.toFixed(0)}ms` : ''}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 font-medium">Heap</span>
+                        <span className="font-semibold text-slate-800 font-mono">
+                          {heapUsed !== undefined && heapUsed !== null ? `${heapUsed} MB` : '—'}
+                          {heapMax ? ` / ${heapMax} MB` : ''}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 font-medium">DB Pool</span>
+                        <span className="font-semibold text-slate-800 font-mono">
+                          {dbActive !== undefined && dbActive !== null ? `${dbActive}` : '—'}
+                          {dbMax ? ` / ${dbMax}` : ''}
+                          {dbPending > 0 && <span className="text-amber-600 font-bold ml-1">(대기 {dbPending})</span>}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] font-medium text-brand-600 flex items-center justify-between mt-0.5">
+                      <span>상세 모니터링</span>
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           )}
 

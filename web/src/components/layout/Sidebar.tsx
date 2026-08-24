@@ -116,13 +116,13 @@ export default function Sidebar() {
                         <div
                           className={`group flex items-center justify-between rounded-md px-2 py-1.5 text-xs transition-colors ${
                             isInstSelected
-                              ? 'bg-brand-100/70 font-bold text-brand-800'
+                              ? 'bg-brand-100/80 font-bold text-brand-800'
                               : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
                           }`}
                         >
                           <Link
                             to={`/monitoring?instance=${inst.instanceId}`}
-                            className="flex-1 truncate font-medium"
+                            className={`flex-1 truncate ${isInstSelected ? 'font-bold text-brand-800' : 'font-medium'}`}
                           >
                             {inst.name}
                           </Link>
