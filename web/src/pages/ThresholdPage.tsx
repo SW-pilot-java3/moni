@@ -492,15 +492,15 @@ export default function ThresholdPage() {
                         {/* 설정 상태 뱃지 */}
                         <td className="py-3.5 px-3 text-right">
                           {isError ? (
-                            <span className="inline-block rounded-md border border-rose-200 bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-700">
+                            <span className="inline-block rounded-md border border-rose-300 bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-700">
                               범위 오류
                             </span>
                           ) : row.isCustomized ? (
-                            <span className="inline-block rounded-md border border-brand-200 bg-brand-50 px-2.5 py-0.5 text-xs font-bold text-brand-700">
+                            <span className="inline-block rounded-md bg-brand-600 px-2.5 py-0.5 text-xs font-bold text-white shadow-2xs">
                               커스텀
                             </span>
                           ) : (
-                            <span className="inline-block rounded-md border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                            <span className="inline-block rounded-md border border-slate-300 bg-slate-200/90 px-2.5 py-0.5 text-xs font-semibold text-slate-700 shadow-2xs">
                               기본값
                             </span>
                           )}

@@ -15,7 +15,8 @@ import JvmTab from './JvmTab'
 import HikariTab from './HikariTab'
 import ThreadPoolTab from './ThreadPoolTab'
 
-const MAX_SERIES_POINTS = 30
+const INITIAL_FETCH_POINTS = 30 // 초기 5분치 (30개) 조회
+const MAX_SERIES_POINTS = 90 // 최근 15분치 (최대 90개) 누적 및 유지
 
 function toCurrent(event: ServerSseStreamEvent): ServerRealtimeCurrent {
   return {
@@ -86,7 +87,7 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
     setStreamStatus('syncing')
     uptimeRef.current = 0
 
-    getServerRealtimeMetrics(server.serverId, MAX_SERIES_POINTS)
+    getServerRealtimeMetrics(server.serverId, INITIAL_FETCH_POINTS)
       .then((res) => {
         uptimeRef.current = res.current?.processUptimeSeconds ?? 0
         // SSE가 REST 응답보다 먼저 도착해 쌓아둔 포인트가 있으면 히스토리 뒤에 이어붙이고,
@@ -180,6 +181,9 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
           </h1>
         </div>
         <div className="flex items-center gap-2">
+          <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 border border-slate-200/80">
+            최근 15분
+          </span>
           <StatusDot
             tone={STREAM_STATUS_CONFIG[streamStatus].tone}
             label={STREAM_STATUS_CONFIG[streamStatus].label}

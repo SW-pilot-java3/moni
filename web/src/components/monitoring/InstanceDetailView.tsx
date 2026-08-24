@@ -10,7 +10,7 @@ import {
   type ServerItem,
 } from '../../lib/instances'
 
-const MAX_SERIES_POINTS = 30
+const MAX_SERIES_POINTS = 90 // 최근 15분치 (최대 90개) 유지
 
 function formatBytes(bytes: number | null) {
   if (bytes === null) return '—'
@@ -111,10 +111,15 @@ export default function InstanceDetailView({
             {instance.ip}
           </span>
         </h1>
-        <StatusDot
-          tone={STREAM_STATUS_CONFIG[streamStatus].tone}
-          label={STREAM_STATUS_CONFIG[streamStatus].label}
-        />
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 border border-slate-200/80">
+            최근 15분
+          </span>
+          <StatusDot
+            tone={STREAM_STATUS_CONFIG[streamStatus].tone}
+            label={STREAM_STATUS_CONFIG[streamStatus].label}
+          />
+        </div>
       </div>
 
       {/* 메인 2열 레이아웃: 좌측 앱 목록 + 우측 차트 2x2 */}
