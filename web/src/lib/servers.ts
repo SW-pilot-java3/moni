@@ -18,6 +18,13 @@ export interface ApiKeyCreateResult {
   createdAt: string
 }
 
+export interface ApiKeyRotateResult {
+  apiKeyId: number
+  serverId: number
+  newApiKey: string
+  createdAt: string
+}
+
 export interface ApiKeyStatus {
   hasApiKey: boolean
   createdAt: string | null
@@ -34,6 +41,10 @@ export function deleteServer(serverId: number) {
 
 export function createApiKey(serverId: number) {
   return api.post<ApiKeyCreateResult>(`/api/v1/servers/${serverId}/api-keys`)
+}
+
+export function rotateApiKey(serverId: number) {
+  return api.post<ApiKeyRotateResult>(`/api/v1/servers/${serverId}/api-keys/rotate`)
 }
 
 export function getApiKeyStatus(serverId: number) {
@@ -112,6 +123,8 @@ export interface ServerRealtimeSeriesPoint {
   jvmHeapMaxBytes: number
   jvmOldGenUsedBytes: number
   gcPauseSecondsSum: number
+  threadsLive?: number
+  threadsBlocked?: number
   totalRps: number
   avgLatencyMs: number
   hikaricpActiveTotal: number
@@ -181,9 +194,14 @@ export interface ServerSseStreamEvent {
 export function subscribeServerMetricStream(
   serverId: number,
   onMetric: (event: ServerSseStreamEvent) => void,
+  onOpen?: () => void,
   onError?: () => void,
 ): () => void {
   const source = new EventSource(buildSseUrl(`/api/v1/servers/${serverId}/stream`))
+
+  if (onOpen) {
+    source.onopen = onOpen
+  }
 
   source.addEventListener('server_metric', (e) => {
     try {
