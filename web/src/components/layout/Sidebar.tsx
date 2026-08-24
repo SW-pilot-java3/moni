@@ -185,7 +185,21 @@ export default function Sidebar() {
             <div className="px-3 pb-2 text-xs font-bold text-slate-700 tracking-tight">
               인스턴스 · 앱
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1.5">
+              {/* 인프라 관리 (메인 대시보드 허브) */}
+              <NavLink
+                to="/dashboard"
+                className={({ isActive }) =>
+                  `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-brand-50 text-brand-700 font-semibold'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`
+                }
+              >
+                인프라 관리
+              </NavLink>
+
               {/* 시작하기 서브 메뉴 */}
               <div>
                 <Link
@@ -226,32 +240,6 @@ export default function Sidebar() {
                   </NavLink>
                 </div>
               </div>
-
-              <NavLink
-                to="/dashboard"
-                className={({ isActive }) =>
-                  `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-brand-50 text-brand-700 font-semibold'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`
-                }
-              >
-                연동 현황
-              </NavLink>
-
-              <NavLink
-                to="/manage"
-                className={({ isActive }) =>
-                  `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-brand-50 text-brand-700 font-semibold'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`
-                }
-              >
-                상세 관리
-              </NavLink>
 
               {/* 임계치 설정 서브 메뉴 */}
               <div>
