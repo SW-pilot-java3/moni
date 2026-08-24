@@ -3,8 +3,10 @@ import MiniAreaCard from './MiniAreaCard'
 import StatusDot, { STREAM_STATUS_CONFIG, type StreamStatus } from '../ui/StatusDot'
 import { getTone, DEFAULT_THRESHOLDS } from '../../lib/thresholdUtils'
 import {
+  getInstanceHistoryMetrics,
   getInstanceRealtimeMetrics,
   subscribeInstanceMetricStream,
+  type InstanceHistoryMetrics,
   type InstanceListItem,
   type InstanceRealtimeMetricPoint,
   type ServerItem,
@@ -12,13 +14,20 @@ import {
 
 const MAX_SERIES_POINTS = 90 // 최근 15분치 (최대 90개) 유지
 
-function formatBytes(bytes: number | null) {
-  if (bytes === null) return '—'
+function formatDate(d: Date) {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatBytes(bytes: number | null | undefined) {
+  if (bytes === null || bytes === undefined) return '—'
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)}GB`
 }
 
-function formatBytesPerSec(bytesPerSec: number | null) {
-  if (bytesPerSec === null) return '—'
+function formatBytesPerSec(bytesPerSec: number | null | undefined) {
+  if (bytesPerSec === null || bytesPerSec === undefined) return '—'
   return `${(bytesPerSec / 1024 / 1024).toFixed(2)} MB/s`
 }
 
@@ -30,6 +39,19 @@ function shortTime(iso: string) {
   return `${h}:${m}:${s}`
 }
 
+function yesterdayDate() {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return formatDate(d)
+}
+
+function shortDateHour(iso: string) {
+  const d = new Date(iso)
+  const h = String(d.getHours()).padStart(2, '0')
+  const m = String(d.getMinutes()).padStart(2, '0')
+  return `${h}:${m}`
+}
+
 export default function InstanceDetailView({
   instance,
   apps,
@@ -39,9 +61,14 @@ export default function InstanceDetailView({
   apps: ServerItem[]
   onSelectApp: (serverId: number) => void
 }) {
+  const [mode, setMode] = useState<'realtime' | 'history'>('realtime')
+  const [historyDate, setHistoryDate] = useState(yesterdayDate())
+  const [historyData, setInstanceHistory] = useState<InstanceHistoryMetrics | null>(null)
+
   const [metrics, setMetrics] = useState<InstanceRealtimeMetricPoint[]>([])
   const [streamStatus, setStreamStatus] = useState<StreamStatus>('syncing')
 
+  // 1. 실시간 스트림 (과거 지표를 보는 동안에도 백그라운드에서 계속 수신)
   useEffect(() => {
     setMetrics([])
     setStreamStatus('syncing')
@@ -85,39 +112,112 @@ export default function InstanceDetailView({
     return unsubscribe
   }, [instance.instanceId])
 
-  const latest = metrics.length > 0 ? metrics[metrics.length - 1] : null
+  // 2. 과거 지표 조회 (모드가 history이거나 날짜 변경 시 호출)
+  useEffect(() => {
+    if (mode === 'history') {
+      getInstanceHistoryMetrics(instance.instanceId, historyDate)
+        .then(setInstanceHistory)
+        .catch(() => setInstanceHistory(null))
+    }
+  }, [mode, instance.instanceId, historyDate])
 
-  const cpuTimeline = metrics.map((m) => ({ time: shortTime(m.collectedAt), cpuPct: m.cpuUsagePct ?? 0 }))
-  const memTimeline = metrics.map((m) => ({
-    time: shortTime(m.collectedAt),
-    memAvailGb: m.memAvailableBytes !== null ? Number((m.memAvailableBytes / 1024 / 1024 / 1024).toFixed(2)) : 0,
-  }))
-  const diskTimeline = metrics.map((m) => ({
-    time: shortTime(m.collectedAt),
-    utilPct: m.diskUtilizationPct ?? 0,
-  }))
-  const netTimeline = metrics.map((m) => ({
-    time: shortTime(m.collectedAt),
-    rxMBps: m.netRxBytesPerSec !== null ? Number((m.netRxBytesPerSec / 1024 / 1024).toFixed(2)) : 0,
-  }))
+  const isRealtime = mode === 'realtime'
+  const latest = metrics.length > 0 ? metrics[metrics.length - 1] : null
+  const summary = historyData?.summary
+
+  // 차트 타임라인 데이터 구성 (실시간 vs 과거)
+  const cpuTimeline = isRealtime
+    ? metrics.map((m) => ({ time: shortTime(m.collectedAt), cpuPct: m.cpuUsagePct ?? 0 }))
+    : (historyData?.series ?? []).map((s) => ({ time: shortDateHour(s.statTime), cpuPct: s.cpuUsageAvg ?? 0 }))
+
+  const memTimeline = isRealtime
+    ? metrics.map((m) => ({
+        time: shortTime(m.collectedAt),
+        memAvailGb: m.memAvailableBytes !== null ? Number((m.memAvailableBytes / 1024 / 1024 / 1024).toFixed(2)) : 0,
+      }))
+    : (historyData?.series ?? []).map((s) => ({
+        time: shortDateHour(s.statTime),
+        memAvailGb: s.memAvailableAvg !== null ? Number((s.memAvailableAvg / 1024 / 1024 / 1024).toFixed(2)) : 0,
+      }))
+
+  const diskTimeline = isRealtime
+    ? metrics.map((m) => ({
+        time: shortTime(m.collectedAt),
+        utilPct: m.diskUtilizationPct ?? 0,
+      }))
+    : (historyData?.series ?? []).map((s) => ({
+        time: shortDateHour(s.statTime),
+        utilPct: s.diskUsedPctMax ?? 0,
+      }))
+
+  const netTimeline = isRealtime
+    ? metrics.map((m) => ({
+        time: shortTime(m.collectedAt),
+        rxMBps: m.netRxBytesPerSec !== null ? Number((m.netRxBytesPerSec / 1024 / 1024).toFixed(2)) : 0,
+      }))
+    : (historyData?.series ?? []).map((s) => ({
+        time: shortDateHour(s.statTime),
+        rxMBps: s.rxMbpsAvg !== null ? Number(s.rxMbpsAvg.toFixed(2)) : 0,
+      }))
 
   return (
     <div className="w-full flex-1 flex flex-col min-h-0">
-      {/* 헤더 */}
-      <div className="mb-4 flex items-start justify-between shrink-0">
+      {/* 헤더: 대상 인스턴스 정보 + 우측 모드 스위처/날짜/상태 */}
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0">
         <h1 className="flex items-baseline gap-3 text-xl font-bold text-slate-900">
           {instance.name}
           <span className="text-sm font-normal text-slate-400">
             {instance.ip}
           </span>
         </h1>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 border border-slate-200/80">
-            최근 15분
-          </span>
+
+        {/* 우측 컨트롤 바: [ 실시간 | 과거 지표 ] + [ 최근 15분 / 캘린더 ] + StatusDot */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* 모드 전환 세그먼트 버튼 */}
+          <div className="flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setMode('realtime')}
+              className={`rounded-md px-3 py-1 transition-all ${
+                isRealtime
+                  ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              실시간
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('history')}
+              className={`rounded-md px-3 py-1 transition-all ${
+                !isRealtime
+                  ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              과거
+            </button>
+          </div>
+
+          {/* 실시간 모드일 때: 최근 15분 뱃지 */}
+          {isRealtime ? (
+            <span className="inline-flex items-center rounded-md border border-slate-300 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-2xs">
+              최근 15분
+            </span>
+          ) : (
+            /* 과거 지표 모드일 때: 날짜 선택 캘린더 */
+            <input
+              type="date"
+              value={historyDate}
+              max={formatDate(new Date())}
+              onChange={(e) => setHistoryDate(e.target.value)}
+              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-2xs focus:border-brand-500 focus:outline-none"
+            />
+          )}
+
           <StatusDot
             tone={STREAM_STATUS_CONFIG[streamStatus].tone}
-            label={STREAM_STATUS_CONFIG[streamStatus].label}
+            label={isRealtime ? STREAM_STATUS_CONFIG[streamStatus].label : '실시간 수신중'}
           />
         </div>
       </div>
@@ -166,53 +266,121 @@ export default function InstanceDetailView({
           </p>
         </div>
 
-        {/* 우측: 차트 2x2 (서버 모니터링과 동일하게 세로 꽉차게) */}
+        {/* 우측: 차트 2x2 */}
         <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-4 min-h-0">
+          {/* 1. CPU 차트 */}
           <MiniAreaCard
-            title="CPU"
-            stats={[
-              {
-                label: '사용률',
-                value: latest?.cpuUsagePct !== null && latest ? `${latest.cpuUsagePct?.toFixed(1)}%` : '—',
-                tone: getTone(latest?.cpuUsagePct, DEFAULT_THRESHOLDS.CPU_USAGE.warn, DEFAULT_THRESHOLDS.CPU_USAGE.crit),
-              },
-            ]}
+            title={isRealtime ? 'CPU' : `CPU 사용률 (${historyDate})`}
+            stats={
+              isRealtime
+                ? [
+                    {
+                      label: '사용률',
+                      value: latest?.cpuUsagePct !== null && latest ? `${latest.cpuUsagePct?.toFixed(1)}%` : '—',
+                      tone: getTone(latest?.cpuUsagePct, DEFAULT_THRESHOLDS.CPU_USAGE.warn, DEFAULT_THRESHOLDS.CPU_USAGE.crit),
+                    },
+                  ]
+                : [
+                    {
+                      label: '일간 평균',
+                      value: summary?.cpu?.cpuUsageAvg !== undefined ? `${summary.cpu.cpuUsageAvg.toFixed(1)}%` : '—',
+                      tone: getTone(summary?.cpu?.cpuUsageAvg, DEFAULT_THRESHOLDS.CPU_USAGE.warn, DEFAULT_THRESHOLDS.CPU_USAGE.crit),
+                    },
+                    {
+                      label: '일간 최대',
+                      value: summary?.cpu?.cpuUsageMax !== undefined ? `${summary.cpu.cpuUsageMax.toFixed(1)}%` : '—',
+                    },
+                    {
+                      label: 'I/O Wait',
+                      value: summary?.cpu?.cpuIowaitAvg !== undefined ? `${summary.cpu.cpuIowaitAvg.toFixed(1)}%` : '—',
+                    },
+                  ]
+            }
             data={cpuTimeline}
             dataKey="cpuPct"
             color="#5b7fa6"
           />
+
+          {/* 2. 가용 메모리 차트 */}
           <MiniAreaCard
-            title="가용 메모리"
-            stats={[{ label: '가용', value: latest ? formatBytes(latest.memAvailableBytes) : '—' }]}
+            title={isRealtime ? '가용 메모리' : `가용 메모리 (${historyDate})`}
+            stats={
+              isRealtime
+                ? [{ label: '가용', value: latest ? formatBytes(latest.memAvailableBytes) : '—' }]
+                : [
+                    { label: '가용 평균', value: formatBytes(summary?.memory?.memAvailableAvg) },
+                    { label: '가용 최소', value: formatBytes(summary?.memory?.memAvailableMin) },
+                    { label: 'Swap 최대', value: formatBytes(summary?.memory?.swapUsedMax) },
+                  ]
+            }
             data={memTimeline}
             dataKey="memAvailGb"
             color="#4a8c6f"
           />
+
+          {/* 3. 디스크 I/O 차트 */}
           <MiniAreaCard
-            title="디스크 I/O"
-            stats={[
-              { label: '읽기', value: latest ? formatBytesPerSec(latest.diskReadBytesPerSec) : '—' },
-              { label: '쓰기', value: latest ? formatBytesPerSec(latest.diskWriteBytesPerSec) : '—' },
-              {
-                label: 'Utilization',
-                value: latest?.diskUtilizationPct !== null && latest ? `${latest.diskUtilizationPct?.toFixed(1)}%` : '—',
-                tone: getTone(latest?.diskUtilizationPct, DEFAULT_THRESHOLDS.DISK_USAGE.warn, DEFAULT_THRESHOLDS.DISK_USAGE.crit),
-              },
-            ]}
+            title={isRealtime ? '디스크 I/O' : `디스크 현황 (${historyDate})`}
+            stats={
+              isRealtime
+                ? [
+                    { label: '읽기', value: latest ? formatBytesPerSec(latest.diskReadBytesPerSec) : '—' },
+                    { label: '쓰기', value: latest ? formatBytesPerSec(latest.diskWriteBytesPerSec) : '—' },
+                    {
+                      label: 'Utilization',
+                      value: latest?.diskUtilizationPct !== null && latest ? `${latest.diskUtilizationPct?.toFixed(1)}%` : '—',
+                      tone: getTone(latest?.diskUtilizationPct, DEFAULT_THRESHOLDS.DISK_USAGE.warn, DEFAULT_THRESHOLDS.DISK_USAGE.crit),
+                    },
+                  ]
+                : [
+                    {
+                      label: '최대 점유율',
+                      value: summary?.disk?.diskUsedPctMax !== undefined ? `${summary.disk.diskUsedPctMax.toFixed(1)}%` : '—',
+                      tone: getTone(summary?.disk?.diskUsedPctMax, DEFAULT_THRESHOLDS.DISK_USAGE.warn, DEFAULT_THRESHOLDS.DISK_USAGE.crit),
+                    },
+                    {
+                      label: 'Read IOPS',
+                      value: summary?.disk?.readIopsAvg !== undefined ? `${summary.disk.readIopsAvg.toFixed(0)}` : '—',
+                    },
+                    {
+                      label: 'Write IOPS',
+                      value: summary?.disk?.writeIopsAvg !== undefined ? `${summary.disk.writeIopsAvg.toFixed(0)}` : '—',
+                    },
+                  ]
+            }
             data={diskTimeline}
             dataKey="utilPct"
             color="#c8922f"
           />
+
+          {/* 4. 네트워크 차트 */}
           <MiniAreaCard
-            title="네트워크"
-            stats={[
-              { label: 'RX', value: latest ? formatBytesPerSec(latest.netRxBytesPerSec) : '—' },
-              { label: 'TX', value: latest ? formatBytesPerSec(latest.netTxBytesPerSec) : '—' },
-              {
-                label: '에러율',
-                value: latest?.netErrorsPerSec !== null && latest ? `${latest.netErrorsPerSec?.toFixed(2)}/s` : '—',
-              },
-            ]}
+            title={isRealtime ? '네트워크' : `네트워크 전송량 (${historyDate})`}
+            stats={
+              isRealtime
+                ? [
+                    { label: 'RX', value: latest ? formatBytesPerSec(latest.netRxBytesPerSec) : '—' },
+                    { label: 'TX', value: latest ? formatBytesPerSec(latest.netTxBytesPerSec) : '—' },
+                    {
+                      label: '에러율',
+                      value: latest?.netErrorsPerSec !== null && latest ? `${latest.netErrorsPerSec?.toFixed(2)}/s` : '—',
+                    },
+                  ]
+                : [
+                    {
+                      label: 'RX 평균',
+                      value: summary?.network?.rxMbpsAvg !== undefined ? `${summary.network.rxMbpsAvg.toFixed(2)} MB/s` : '—',
+                    },
+                    {
+                      label: 'TX 평균',
+                      value: summary?.network?.txMbpsAvg !== undefined ? `${summary.network.txMbpsAvg.toFixed(2)} MB/s` : '—',
+                    },
+                    {
+                      label: '에러 합계',
+                      value: summary?.network?.errorsSum !== undefined ? `${summary.network.errorsSum}건` : '—',
+                    },
+                  ]
+            }
             data={netTimeline}
             dataKey="rxMBps"
             color="#9b8ac1"
@@ -221,4 +389,4 @@ export default function InstanceDetailView({
       </div>
     </div>
   )
-}
+}

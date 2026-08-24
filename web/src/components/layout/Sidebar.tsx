@@ -1,61 +1,88 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, useLocation, useSearchParams } from 'react-router-dom'
-import { getInstances, getServers, type InstanceListItem, type ServerItem } from '../../lib/instances'
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import {
+  getInstances,
+  getServers,
+  type InstanceListItem,
+  type ServerItem,
+} from '../../lib/instances'
+
+interface UserProfile {
+  username?: string
+  name?: string
+  email?: string
+}
 
 export default function Sidebar() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const isMonitoring = location.pathname.startsWith('/monitoring')
-  const currentInstanceId = searchParams.get('instance')
-  const currentServerId = searchParams.get('app')
 
   const [instances, setInstances] = useState<InstanceListItem[]>([])
   const [serversByInstance, setServersByInstance] = useState<Record<number, ServerItem[]>>({})
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
+  const [user, setUser] = useState<UserProfile | null>(null)
 
-  const ensureServers = (instanceId: number) => {
+  useEffect(() => {
+    const raw = localStorage.getItem('moni_user')
+    if (raw) {
+      try {
+        setUser(JSON.parse(raw))
+      } catch {
+        setUser(null)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    getInstances()
+      .then((res) => {
+        setInstances(res)
+        // 첫 번째 인스턴스는 기본 펼침
+        if (res.length > 0) {
+          setExpanded((prev) => ({ ...prev, [res[0].instanceId]: true }))
+          loadServersForInstance(res[0].instanceId)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const loadServersForInstance = (instanceId: number) => {
     if (serversByInstance[instanceId]) return
     getServers(instanceId)
       .then((res) => setServersByInstance((prev) => ({ ...prev, [instanceId]: res })))
       .catch(() => setServersByInstance((prev) => ({ ...prev, [instanceId]: [] })))
   }
 
-  useEffect(() => {
-    getInstances()
-      .then((res) => {
-        setInstances(res)
-        if (res.length > 0) {
-          const targetId = currentInstanceId ? Number(currentInstanceId) : res[0].instanceId
-          setExpanded((prev) => ({ ...prev, [targetId]: true }))
-          ensureServers(targetId)
-        }
-      })
-      .catch(() => {})
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  useEffect(() => {
-    if (currentInstanceId) {
-      const instId = Number(currentInstanceId)
-      setExpanded((prev) => ({ ...prev, [instId]: true }))
-      ensureServers(instId)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentInstanceId])
-
   const toggleExpand = (e: React.MouseEvent, instanceId: number) => {
     e.preventDefault()
     e.stopPropagation()
-    setExpanded((prev) => ({ ...prev, [instanceId]: !prev[instanceId] }))
-    ensureServers(instanceId)
+    setExpanded((prev) => {
+      const next = !prev[instanceId]
+      if (next) loadServersForInstance(instanceId)
+      return { ...prev, [instanceId]: next }
+    })
   }
 
+  const handleLogout = () => {
+    localStorage.removeItem('moni_token')
+    localStorage.removeItem('moni_user')
+    navigate('/login')
+  }
+
+  const currentInstanceId = searchParams.get('instance')
+  const currentServerId = searchParams.get('app')
+  const isMonitoring = location.pathname.startsWith('/monitoring')
+
   return (
-    <aside className="w-64 shrink-0 border-r border-slate-200 bg-white px-3 py-6 flex flex-col justify-between select-none">
-      <div>
-        <Link to="/dashboard" className="mb-7 flex items-center gap-3 px-3 group">
-          <img src="/favicon/favicon.svg" alt="Moni Logo" className="h-8 w-8 rounded-lg shadow-2xs transition-transform group-hover:scale-105" />
-          <span className="font-mono text-2xl font-extrabold tracking-tight text-brand-600">Moni</span>
+    <aside className="w-64 border-r border-slate-200 bg-white flex flex-col justify-between h-screen shrink-0">
+      <div className="p-4 overflow-y-auto">
+        {/* 서비스 로고 */}
+        <Link to="/dashboard" className="flex items-center gap-2 px-2 py-3 mb-4">
+          <div className="h-8 w-8 rounded-lg bg-brand-500 flex items-center justify-center text-white font-bold shadow-sm">
+            M
+          </div>
+          <span className="text-xl font-bold text-slate-900 tracking-tight">Moni</span>
         </Link>
 
         <nav className="flex flex-col gap-4">
@@ -65,17 +92,16 @@ export default function Sidebar() {
               모니터링
             </div>
             <div className="flex flex-col gap-1">
-              {/* 실시간 모니터링 섹션 */}
               <div>
                 <Link
-                  to="/monitoring"
+                  to={instances.length > 0 ? `/monitoring?instance=${instances[0].instanceId}` : '/monitoring'}
                   className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                     isMonitoring
                       ? 'bg-brand-50/70 font-semibold text-brand-700'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                   }`}
                 >
-                  <span>실시간 모니터링</span>
+                  <span>인프라 모니터링</span>
                 </Link>
 
                 {/* 인스턴스 / 앱 아코디언 트리 */}
@@ -161,19 +187,6 @@ export default function Sidebar() {
                   )}
                 </div>
               </div>
-
-              <NavLink
-                to="/history"
-                className={({ isActive }) =>
-                  `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-brand-50 text-brand-700'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`
-                }
-              >
-                과거 데이터 조회
-              </NavLink>
             </div>
           </div>
 
@@ -186,21 +199,7 @@ export default function Sidebar() {
               인스턴스 · 앱
             </div>
             <div className="flex flex-col gap-1.5">
-              {/* 인프라 관리 (메인 대시보드 허브) */}
-              <NavLink
-                to="/dashboard"
-                className={({ isActive }) =>
-                  `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-brand-50 text-brand-700 font-semibold'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`
-                }
-              >
-                인프라 관리
-              </NavLink>
-
-              {/* 시작하기 서브 메뉴 */}
+              {/* 시작하기 서브 메뉴 (최상단) */}
               <div>
                 <Link
                   to="/instances/new"
@@ -236,54 +235,66 @@ export default function Sidebar() {
                       }`
                     }
                   >
-                    앱 연동 (Spring Boot)
+                    Spring Boot 앱 연동
                   </NavLink>
                 </div>
               </div>
 
-              {/* 임계치 설정 서브 메뉴 */}
-              <div>
-                <Link
-                  to="/thresholds/instance"
-                  className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                    location.pathname.startsWith('/thresholds')
-                      ? 'bg-brand-50/70 font-semibold text-brand-700'
+              {/* 인프라 관리 */}
+              <NavLink
+                to="/dashboard"
+                className={({ isActive }) =>
+                  `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-brand-50 text-brand-700 font-semibold'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <span>임계치 설정</span>
-                </Link>
+                  }`
+                }
+              >
+                인프라 관리
+              </NavLink>
 
-                <div className="mt-1 flex flex-col gap-0.5 pl-2 border-l border-slate-100 ml-3">
-                  <NavLink
-                    to="/thresholds/instance"
-                    className={({ isActive }) =>
-                      `flex min-h-[36px] items-center rounded-md px-2 py-1.5 text-xs transition-colors ${
-                        isActive || location.pathname === '/thresholds'
-                          ? 'bg-brand-100/80 font-bold text-brand-800'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                      }`
-                    }
-                  >
-                    인스턴스
-                  </NavLink>
-                  <NavLink
-                    to="/thresholds/app"
-                    className={({ isActive }) =>
-                      `flex min-h-[36px] items-center rounded-md px-2 py-1.5 text-xs transition-colors ${
-                        isActive
-                          ? 'bg-brand-100/80 font-bold text-brand-800'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                      }`
-                    }
-                  >
-                    앱 (Spring Boot)
-                  </NavLink>
-                </div>
-              </div>
+              {/* 임계치 설정 */}
+              <NavLink
+                to="/thresholds"
+                className={({ isActive }) =>
+                  `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-brand-50 text-brand-700 font-semibold'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`
+                }
+              >
+                임계치 설정
+              </NavLink>
             </div>
           </div>
         </nav>
+      </div>
+
+      {/* 하단 사용자 프로필 및 로그아웃 */}
+      <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="h-8 w-8 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center text-slate-700 text-xs font-bold shrink-0">
+              {(user?.name || user?.username || 'U')[0].toUpperCase()}
+            </div>
+            <div className="overflow-hidden text-xs">
+              <p className="font-bold text-slate-900 truncate">{user?.name || user?.username || '사용자'}</p>
+              <p className="text-slate-400 truncate">{user?.email || 'user@example.com'}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+            title="로그아웃"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </button>
+        </div>
       </div>
     </aside>
   )

@@ -15,10 +15,18 @@ export default function MonitoringPage() {
 
   const instanceIdParam = searchParams.get('instance')
   const serverIdParam = searchParams.get('app')
-  const selection: Selection | null = instanceIdParam
+
+  // URL 파라미터가 없으면 등록된 첫 번째 인스턴스를 자동으로 기본 선택
+  const effectiveInstanceId = instanceIdParam
+    ? Number(instanceIdParam)
+    : instances.length > 0
+      ? instances[0].instanceId
+      : null
+
+  const selection: Selection | null = effectiveInstanceId !== null
     ? serverIdParam
-      ? { kind: 'app', instanceId: Number(instanceIdParam), serverId: Number(serverIdParam) }
-      : { kind: 'instance', instanceId: Number(instanceIdParam) }
+      ? { kind: 'app', instanceId: effectiveInstanceId, serverId: Number(serverIdParam) }
+      : { kind: 'instance', instanceId: effectiveInstanceId }
     : null
 
   const selectApp = (instanceId: number, serverId: number) => {
@@ -41,7 +49,7 @@ export default function MonitoringPage() {
         const targetInstanceId = instanceIdParam ? Number(instanceIdParam) : res[0].instanceId
         const validInstanceId = res.some((i) => i.instanceId === targetInstanceId) ? targetInstanceId : res[0].instanceId
 
-        if (!instanceIdParam) {
+        if (!instanceIdParam || String(validInstanceId) !== instanceIdParam) {
           setSearchParams({ instance: String(validInstanceId) }, { replace: true })
         }
         ensureServers(validInstanceId)
@@ -51,11 +59,14 @@ export default function MonitoringPage() {
   }, [])
 
   useEffect(() => {
-    if (instanceIdParam) {
-      ensureServers(Number(instanceIdParam))
+    if (effectiveInstanceId !== null) {
+      ensureServers(effectiveInstanceId)
+      if (!instanceIdParam && instances.length > 0) {
+        setSearchParams({ instance: String(effectiveInstanceId) }, { replace: true })
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instanceIdParam])
+  }, [effectiveInstanceId, instanceIdParam, instances.length])
 
   const selectedInstance = selection ? instances.find((i) => i.instanceId === selection.instanceId) : undefined
   const selectedServer =
