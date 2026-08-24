@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useDialog } from '../lib/dialog'
 import { Link } from 'react-router-dom'
 import ApiKeyModal from '../components/manage/ApiKeyModal'
 import Card from '../components/ui/Card'
@@ -24,6 +25,7 @@ function formatDate(value: string | null) {
 }
 
 export default function DashboardPage() {
+  const dialog = useDialog()
   const [instances, setInstances] = useState<InstanceListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -82,7 +84,12 @@ export default function DashboardPage() {
   }
 
   const handleDeleteApp = async (instanceId: number, serverId: number) => {
-    if (!confirm('정말 이 애플리케이션을 삭제하시겠습니까? 수집된 지표 데이터가 삭제됩니다.')) return
+    const ok = await dialog.confirm('정말 이 애플리케이션을 삭제하시겠습니까? 수집된 지표 데이터가 삭제됩니다.', {
+      title: '앱 삭제',
+      confirmLabel: '삭제',
+      variant: 'danger',
+    })
+    if (!ok) return
     try {
       await deleteServer(serverId)
       setServers((prev) => ({
@@ -95,7 +102,7 @@ export default function DashboardPage() {
         )
       )
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : '삭제에 실패했습니다.')
+      await dialog.alert(err instanceof ApiError ? err.message : '삭제에 실패했습니다.', { title: '오류', variant: 'danger' })
     }
   }
 
@@ -380,15 +387,21 @@ export default function DashboardPage() {
                           type="button"
                           onClick={async () => {
                             if (inst.serverCount > 0) {
-                              alert('인스턴스 삭제는 안전을 위해 소속된 앱을 모두 삭제한 뒤 진행해주세요.')
+                              await dialog.alert('인스턴스 삭제는 안전을 위해 소속된 앱을 모두 삭제한 뒤 진행해주세요.', {
+                                title: '삭제 불가',
+                              })
                               return
                             }
-                            if (!confirm(`'${inst.name}' 인스턴스를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) return
+                            const ok = await dialog.confirm(
+                              `'${inst.name}' 인스턴스를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`,
+                              { title: '인스턴스 삭제', confirmLabel: '삭제', variant: 'danger' },
+                            )
+                            if (!ok) return
                             try {
                               await deleteInstance(inst.instanceId)
                               setInstances((prev) => prev.filter((i) => i.instanceId !== inst.instanceId))
                             } catch (e) {
-                              alert(e instanceof Error ? e.message : '삭제 중 오류가 발생했습니다.')
+                              await dialog.alert(e instanceof Error ? e.message : '삭제 중 오류가 발생했습니다.', { title: '오류', variant: 'danger' })
                             }
                           }}
                           className="text-xs font-medium text-danger-500 hover:text-danger-700 px-1"
