@@ -2,10 +2,14 @@ package com.moni.api.domain.instance.service;
 
 import com.moni.api.domain.instance.dto.*;
 import com.moni.api.domain.instance.entity.Instance;
+import com.moni.api.domain.instance.entity.InstanceDiskMetric;
+import com.moni.api.domain.instance.entity.InstanceNetworkMetric;
 import com.moni.api.domain.instance.entity.InstanceRealtimeMetric;
 import com.moni.api.domain.instance.entity.InstanceThreshold;
 import com.moni.api.domain.instance.enums.MetricKey;
 import com.moni.api.domain.instance.exception.InstanceErrorCode;
+import com.moni.api.domain.instance.repository.InstanceDiskMetricsRepository;
+import com.moni.api.domain.instance.repository.InstanceNetworkMetricsRepository;
 import com.moni.api.domain.instance.repository.InstanceRealtimeMetricRepository;
 import com.moni.api.domain.instance.repository.InstanceRepository;
 import com.moni.api.domain.instance.repository.InstanceThresholdRepository;
@@ -52,6 +56,8 @@ public class InstanceService {
     private final InstanceRepository instanceRepository;
     private final InstanceThresholdRepository instanceThresholdRepository;
     private final InstanceRealtimeMetricRepository instanceRealtimeMetricRepository;
+    private final InstanceDiskMetricsRepository instanceDiskMetricsRepository;
+    private final InstanceNetworkMetricsRepository instanceNetworkMetricsRepository;
     private final UserRepository userRepository;
     private final ServerRepository serverRepository;
     private final InstanceStatCpuRepository instanceStatCpuRepository;
@@ -129,16 +135,44 @@ public class InstanceService {
         List<InstanceRealtimeMetric> metrics = new ArrayList<>(recentDesc);
         Collections.reverse(metrics);
 
+        List<Long> realtimeMetricIds = metrics.stream().map(InstanceRealtimeMetric::getId).toList();
+        Map<Long, List<InstanceDiskMetric>> diskMetricsByRealtimeId = instanceDiskMetricsRepository
+                .findAllByRealtimeMetricIdIn(realtimeMetricIds).stream()
+                .collect(Collectors.groupingBy(d -> d.getRealtimeMetric().getId()));
+        Map<Long, List<InstanceNetworkMetric>> networkMetricsByRealtimeId = instanceNetworkMetricsRepository
+                .findAllByRealtimeMetricIdIn(realtimeMetricIds).stream()
+                .collect(Collectors.groupingBy(n -> n.getRealtimeMetric().getId()));
+
         List<InstanceRealtimeMetricResponse> responses = new ArrayList<>();
         InstanceRealtimeMetric previous = null;
         for (InstanceRealtimeMetric current : metrics) {
             Double cpuUsagePct = previous == null
                     ? null
                     : CpuUsageCalculator.calculate(previous.getCpuMetrics(), current.getCpuMetrics());
+
+            DiskUsageCalculator.Result diskUsage = DiskUsageCalculator.Result.EMPTY;
+            NetworkUsageCalculator.Result networkUsage = NetworkUsageCalculator.Result.EMPTY;
+            if (previous != null) {
+                diskUsage = DiskUsageCalculator.calculate(
+                        diskMetricsByRealtimeId.getOrDefault(previous.getId(), List.of()),
+                        diskMetricsByRealtimeId.getOrDefault(current.getId(), List.of()),
+                        previous.getCollectedAt(), current.getCollectedAt());
+                networkUsage = NetworkUsageCalculator.calculate(
+                        networkMetricsByRealtimeId.getOrDefault(previous.getId(), List.of()),
+                        networkMetricsByRealtimeId.getOrDefault(current.getId(), List.of()),
+                        previous.getCollectedAt(), current.getCollectedAt());
+            }
+
             responses.add(new InstanceRealtimeMetricResponse(
                     current.getCollectedAt(),
                     cpuUsagePct,
-                    current.getMemoryMetrics().getMemAvailableBytes()
+                    current.getMemoryMetrics().getMemAvailableBytes(),
+                    diskUsage.readBytesPerSec(),
+                    diskUsage.writeBytesPerSec(),
+                    diskUsage.utilizationPct(),
+                    networkUsage.rxBytesPerSec(),
+                    networkUsage.txBytesPerSec(),
+                    networkUsage.errorsPerSec()
             ));
             previous = current;
         }

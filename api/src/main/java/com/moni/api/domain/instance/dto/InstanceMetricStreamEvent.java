@@ -6,6 +6,12 @@ public record InstanceMetricStreamEvent(
         Long instanceId,
         LocalDateTime collectedAt,
         Double cpuUsagePct,
-        Long memAvailableBytes
+        Long memAvailableBytes,
+        Double diskReadBytesPerSec,
+        Double diskWriteBytesPerSec,
+        Double diskUtilizationPct,
+        Double netRxBytesPerSec,
+        Double netTxBytesPerSec,
+        Double netErrorsPerSec
 ) {
 }

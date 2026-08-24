@@ -16,6 +16,11 @@ function formatBytes(bytes: number | null) {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)}GB`
 }
 
+function formatBytesPerSec(bytesPerSec: number | null) {
+  if (bytesPerSec === null) return '—'
+  return `${(bytesPerSec / 1024 / 1024).toFixed(2)} MB/s`
+}
+
 function shortTime(iso: string) {
   return new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
@@ -45,7 +50,17 @@ export default function InstanceDetailView({
         setMetrics((prev) =>
           [
             ...prev,
-            { collectedAt: event.collectedAt, cpuUsagePct: event.cpuUsagePct, memAvailableBytes: event.memAvailableBytes },
+            {
+              collectedAt: event.collectedAt,
+              cpuUsagePct: event.cpuUsagePct,
+              memAvailableBytes: event.memAvailableBytes,
+              diskReadBytesPerSec: event.diskReadBytesPerSec,
+              diskWriteBytesPerSec: event.diskWriteBytesPerSec,
+              diskUtilizationPct: event.diskUtilizationPct,
+              netRxBytesPerSec: event.netRxBytesPerSec,
+              netTxBytesPerSec: event.netTxBytesPerSec,
+              netErrorsPerSec: event.netErrorsPerSec,
+            },
           ].slice(-MAX_SERIES_POINTS),
         )
       },
@@ -62,6 +77,14 @@ export default function InstanceDetailView({
     time: shortTime(m.collectedAt),
     memAvailGb: m.memAvailableBytes !== null ? Number((m.memAvailableBytes / 1024 / 1024 / 1024).toFixed(2)) : 0,
   }))
+  const diskTimeline = metrics.map((m) => ({
+    time: shortTime(m.collectedAt),
+    utilPct: m.diskUtilizationPct ?? 0,
+  }))
+  const netTimeline = metrics.map((m) => ({
+    time: shortTime(m.collectedAt),
+    rxMBps: m.netRxBytesPerSec !== null ? Number((m.netRxBytesPerSec / 1024 / 1024).toFixed(2)) : 0,
+  }))
 
   return (
     <div>
@@ -77,7 +100,6 @@ export default function InstanceDetailView({
 
       <div className="mb-6 grid grid-cols-2 gap-4">
         <MiniAreaCard
-          icon="🖥️"
           title="CPU"
           stats={[{ label: '사용률', value: latest?.cpuUsagePct !== null && latest ? `${latest.cpuUsagePct?.toFixed(1)}%` : '—' }]}
           data={cpuTimeline}
@@ -85,12 +107,41 @@ export default function InstanceDetailView({
           color="#5b7fa6"
         />
         <MiniAreaCard
-          icon="🧠"
           title="가용 메모리"
           stats={[{ label: '가용', value: latest ? formatBytes(latest.memAvailableBytes) : '—' }]}
           data={memTimeline}
           dataKey="memAvailGb"
           color="#4a8c6f"
+        />
+        <MiniAreaCard
+          title="디스크 I/O"
+          stats={[
+            { label: '읽기', value: latest ? formatBytesPerSec(latest.diskReadBytesPerSec) : '—' },
+            { label: '쓰기', value: latest ? formatBytesPerSec(latest.diskWriteBytesPerSec) : '—' },
+            {
+              label: 'Utilization',
+              value: latest?.diskUtilizationPct !== null && latest ? `${latest.diskUtilizationPct?.toFixed(1)}%` : '—',
+              tone: 'warn',
+            },
+          ]}
+          data={diskTimeline}
+          dataKey="utilPct"
+          color="#c8922f"
+        />
+        <MiniAreaCard
+          title="네트워크"
+          stats={[
+            { label: 'RX', value: latest ? formatBytesPerSec(latest.netRxBytesPerSec) : '—' },
+            { label: 'TX', value: latest ? formatBytesPerSec(latest.netTxBytesPerSec) : '—' },
+            {
+              label: '에러율',
+              value: latest?.netErrorsPerSec !== null && latest ? `${latest.netErrorsPerSec?.toFixed(2)}/s` : '—',
+              tone: 'danger',
+            },
+          ]}
+          data={netTimeline}
+          dataKey="rxMBps"
+          color="#9b8ac1"
         />
       </div>
 
@@ -119,8 +170,8 @@ export default function InstanceDetailView({
       )}
 
       <p className="mt-6 text-xs leading-relaxed text-slate-400">
-        인스턴스는 호스트 지표(CPU · 가용 메모리)만, 앱은 애플리케이션 지표(JVM · HikariCP · HTTP · API)만 가집니다. 앱을
-        선택하면 JVM · HikariCP · HTTP · API 지표가 열립니다.
+        인스턴스는 호스트 지표(CPU · 메모리 · 디스크 · 네트워크)만, 앱은 애플리케이션 지표(JVM · HikariCP · HTTP · API)만
+        가집니다. 앱을 선택하면 JVM · HikariCP · HTTP · API 지표가 열립니다.
       </p>
     </div>
   )

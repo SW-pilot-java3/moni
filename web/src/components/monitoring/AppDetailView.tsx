@@ -79,7 +79,17 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
 
     getServerRealtimeMetrics(server.serverId, MAX_SERIES_POINTS).then((res) => {
       uptimeRef.current = res.current?.processUptimeSeconds ?? 0
-      setMetrics(res)
+      // SSE가 REST 응답보다 먼저 도착해 쌓아둔 포인트가 있으면 히스토리 뒤에 이어붙이고,
+      // REST 응답으로 통째로 덮어써서 유실되지 않도록 한다.
+      setMetrics((prev) => {
+        if (!prev) return res
+        const existingTimes = new Set(res.series.map((p) => p.collectedAt))
+        const extra = prev.series.filter((p) => !existingTimes.has(p.collectedAt))
+        return {
+          current: prev.current ?? res.current,
+          series: [...res.series, ...extra].slice(-MAX_SERIES_POINTS),
+        }
+      })
     })
 
     const unsubscribe = subscribeServerMetricStream(
