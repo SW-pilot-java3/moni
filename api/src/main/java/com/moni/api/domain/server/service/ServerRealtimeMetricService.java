@@ -4,15 +4,21 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.moni.api.domain.metric.dto.request.MetricRecordRequest;
 import com.moni.api.domain.server.dto.response.ServerSseStreamResponse;
+import com.moni.api.domain.server.entity.JvmMetric;
 import com.moni.api.domain.server.entity.Server;
+import com.moni.api.domain.server.entity.ServerHttpEndpointMetric;
 import com.moni.api.domain.server.entity.ServerRealtimeMetric;
 import com.moni.api.domain.server.entity.ServerStatus;
 import com.moni.api.domain.server.mapper.ServerRealtimeMetricMapper;
 import com.moni.api.domain.server.repository.ServerRealtimeMetricRepository;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ServerRealtimeMetricService {
 
     private final ServerRealtimeMetricRepository serverRealtimeMetricRepository;
+    private final ServerThresholdEvaluationService serverThresholdEvaluationService;
     private final ServerSseService serverSseService;
 
     private final Cache<String, EndpointSnapshot> endpointSnapshots = Caffeine.newBuilder()
@@ -39,13 +46,29 @@ public class ServerRealtimeMetricService {
             return;
         }
 
+        Optional<ServerRealtimeMetric> previousRealtimeMetric = serverRealtimeMetricRepository
+                .findFirstByServerIdAndCollectedAtLessThanOrderByCollectedAtDesc(server.getId(), collectedAt);
+        JvmMetric previousJvmMetric = previousRealtimeMetric.map(ServerRealtimeMetric::getJvmMetric).orElse(null);
+        Set<ServerHttpEndpointMetric> previousHttpEndpoints = previousRealtimeMetric
+                .map(ServerRealtimeMetric::getHttpEndpoints)
+                .orElse(Set.of());
+
         // 서버 실시간 원시 메트릭 DB 저장
         ServerRealtimeMetric realtimeMetric = ServerRealtimeMetricMapper.toEntity(server.getId(), collectedAt, payload);
-        serverRealtimeMetricRepository.save(realtimeMetric);
+        try {
+            serverRealtimeMetricRepository.save(realtimeMetric);
+        } catch (DataIntegrityViolationException e) {
+            log.info("이미 처리된 메트릭 push - serverId={}, collectedAt={}", server.getId(), collectedAt);
+            return;
+        }
 
         // 서버 상태(CONNECTED) 및 마지막 수신 시각 갱신
         server.updateStatus(ServerStatus.CONNECTED);
         server.updateLastReceivedAt(collectedAt);
+
+        // 임계치 비교
+        serverThresholdEvaluationService.evaluate(
+                server.getId(), collectedAt, realtimeMetric, previousJvmMetric, previousHttpEndpoints);
 
         // SSE 브로드캐스트
         ServerSseStreamResponse sseResponse = ServerRealtimeMetricMapper.toSseResponse(
@@ -61,9 +84,9 @@ public class ServerRealtimeMetricService {
             LocalDateTime collectedAt) {
         String key = serverId + ":" + uri + ":" + method;
         EndpointSnapshot prev = endpointSnapshots.getIfPresent(key);
-        endpointSnapshots.put(key, new EndpointSnapshot(currentCount, collectedAt));
 
         if (prev == null) {
+            endpointSnapshots.put(key, new EndpointSnapshot(currentCount, collectedAt));
             return 0.0;
         }
 
@@ -71,6 +94,8 @@ public class ServerRealtimeMetricService {
         if (secondsDiff <= 0) {
             return 0.0;
         }
+
+        endpointSnapshots.put(key, new EndpointSnapshot(currentCount, collectedAt));
 
         long countDiff = currentCount - prev.requestsCount();
         if (countDiff < 0) {

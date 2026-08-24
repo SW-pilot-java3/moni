@@ -35,6 +35,9 @@ class ServerRealtimeMetricServiceTest {
     private ServerRealtimeMetricRepository serverRealtimeMetricRepository;
 
     @Mock
+    private ServerThresholdEvaluationService serverThresholdEvaluationService;
+
+    @Mock
     private ServerSseService serverSseService;
 
     private Server server;

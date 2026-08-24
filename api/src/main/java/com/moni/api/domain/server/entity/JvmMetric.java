@@ -24,6 +24,9 @@ public class JvmMetric {
     @Column(name = "jvm_old_gen_used_bytes")
     private Long jvmOldGenUsedBytes;
 
+    @Column(name = "jvm_old_gen_max_bytes")
+    private Long jvmOldGenMaxBytes;
+
     @Column(name = "gc_pause_seconds_count")
     private Long gcPauseSecondsCount;
 
