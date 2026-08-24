@@ -12,6 +12,7 @@ import StatusDot from '../ui/StatusDot'
 import OverviewTab from './OverviewTab'
 import HttpApiTab from './HttpApiTab'
 import SimpleDetailTab from './SimpleDetailTab'
+import { getTone, DEFAULT_THRESHOLDS } from '../../lib/thresholdUtils'
 
 const MAX_SERIES_POINTS = 30
 
@@ -29,7 +30,7 @@ function toCurrent(event: ServerSseStreamEvent): ServerRealtimeCurrent {
       maxLatencyMs: ep.maxLatencyMs,
       errorRatePct: ep.errorRatePct,
     })),
-    hikaricpPools: event.hikaricpPools,
+    hikaricpPools: event.hikaricpPools.map((p) => ({ ...p, timeoutsTotal: 0 })),
     executors: event.executors,
   }
 }
@@ -49,11 +50,11 @@ function toSeriesPoint(event: ServerSseStreamEvent): ServerRealtimeSeriesPoint {
 }
 
 const tabs = [
-  { key: 'overview', label: 'Overview (종합 개요)', icon: '📊' },
-  { key: 'http', label: 'HTTP · API', icon: '🌐' },
-  { key: 'jvm', label: 'JVM', icon: '🩷' },
-  { key: 'hikari', label: 'HikariCP', icon: '🗄️' },
-  { key: 'threadpool', label: 'ThreadPool', icon: '⚡' },
+  { key: 'overview', label: 'Overview' },
+  { key: 'http', label: 'HTTP · API' },
+  { key: 'jvm', label: 'JVM' },
+  { key: 'hikari', label: 'HikariCP' },
+  { key: 'threadpool', label: 'ThreadPool' },
 ] as const
 
 type TabKey = (typeof tabs)[number]['key']
@@ -63,7 +64,11 @@ function formatMb(bytes: number | undefined) {
 }
 
 function shortTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  const d = new Date(iso)
+  const h = String(d.getHours()).padStart(2, '0')
+  const m = String(d.getMinutes()).padStart(2, '0')
+  const s = String(d.getSeconds()).padStart(2, '0')
+  return `${h}:${m}:${s}`
 }
 
 export default function AppDetailView({ server }: { server: ServerItem }) {
@@ -139,8 +144,8 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
     : 0
 
   return (
-    <div>
-      <div className="mb-3 flex items-start justify-between">
+    <div className="w-full flex-1 flex flex-col min-h-0">
+      <div className="mb-3 flex items-start justify-between shrink-0">
         <div>
           <h1 className="flex items-baseline gap-3 text-xl font-bold text-slate-900">
             {server.name}
@@ -154,7 +159,7 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
         </div>
       </div>
 
-      <div className="mb-5 flex gap-1 border-b border-slate-200 text-sm font-medium">
+      <div className="mb-4 flex gap-1 border-b border-slate-200 text-sm font-medium shrink-0">
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -164,13 +169,13 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
               tab === t.key ? 'border-brand-500 text-brand-600' : 'border-transparent text-slate-400 hover:text-slate-600'
             }`}
           >
-            <span>{t.icon}</span>
             {t.label}
           </button>
         ))}
       </div>
 
-      {tab === 'overview' && (
+      <div className="flex-1 flex flex-col min-h-0">
+        {tab === 'overview' && (
         <OverviewTab
           onNavigateTab={(k) => setTab(k as TabKey)}
           rpsLatencyTimeline={rpsLatencyTimeline}
@@ -194,11 +199,29 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
       )}
       {tab === 'jvm' && (
         <SimpleDetailTab
-          title="🩷 JVM 메모리 & GC 상세"
+          title="JVM 메모리 & GC 상세"
           stats={[
-            { label: 'Heap 사용률', value: `${heapUsagePct}%` },
-            { label: 'Old Gen', value: `${formatMb(latestSeries?.jvmOldGenUsedBytes)} MB`, tone: 'warn' },
-            { label: 'GC 정지 시간(누적)', value: `${(latestSeries?.gcPauseSecondsSum ?? 0).toFixed(3)}s` },
+            {
+              label: 'Heap 사용률',
+              value: `${heapUsagePct}%`,
+              tone: getTone(parseFloat(heapUsagePct) || 0, DEFAULT_THRESHOLDS.JVM_HEAP_USAGE.warn, DEFAULT_THRESHOLDS.JVM_HEAP_USAGE.crit),
+            },
+            {
+              label: 'Old Gen',
+              value: `${formatMb(latestSeries?.jvmOldGenUsedBytes)} MB`,
+              tone: getTone(
+                latestSeries && latestSeries.jvmHeapMaxBytes > 0
+                  ? (latestSeries.jvmOldGenUsedBytes / latestSeries.jvmHeapMaxBytes) * 100
+                  : 0,
+                DEFAULT_THRESHOLDS.JVM_OLD_GEN_USAGE.warn,
+                DEFAULT_THRESHOLDS.JVM_OLD_GEN_USAGE.crit,
+              ),
+            },
+            {
+              label: 'GC 정지 시간(누적)',
+              value: `${(latestSeries?.gcPauseSecondsSum ?? 0).toFixed(3)}s`,
+              tone: getTone(latestSeries?.gcPauseSecondsSum ?? 0, DEFAULT_THRESHOLDS.GC_PAUSE_TIME.warn, DEFAULT_THRESHOLDS.GC_PAUSE_TIME.crit),
+            },
             { label: '가동 시간', value: current ? `${Math.round(current.processUptimeSeconds / 60)}분` : '—' },
           ]}
           data={heapTimeline}
@@ -208,9 +231,17 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
       )}
       {tab === 'hikari' && (
         <SimpleDetailTab
-          title="🗄️ HikariCP DB 커넥션 풀 상세"
+          title="HikariCP DB 커넥션 풀 상세"
           stats={[
-            { label: 'Active', value: `${totalHikariActive}` },
+            {
+              label: 'Active',
+              value: `${totalHikariActive}`,
+              tone: getTone(
+                totalHikariMax > 0 ? (totalHikariActive / totalHikariMax) * 100 : 0,
+                DEFAULT_THRESHOLDS.HIKARICP_POOL_USAGE.warn,
+                DEFAULT_THRESHOLDS.HIKARICP_POOL_USAGE.crit,
+              ),
+            },
             { label: 'Max', value: `${totalHikariMax}` },
             { label: 'Idle 유휴', value: `${totalHikariIdle} 개` },
             { label: 'Pending 대기', value: `${totalHikariPending} 개` },
@@ -222,10 +253,22 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
       )}
       {tab === 'threadpool' && (
         <SimpleDetailTab
-          title="⚡ ThreadPool 비동기 스레드 상세"
+          title="ThreadPool 비동기 스레드 상세"
           stats={[
-            { label: 'Active', value: `${totalExecActive} / ${totalExecMaxLabel}`, tone: 'warn' },
-            { label: 'Queued 대기', value: `${totalExecQueued} 건` },
+            {
+              label: 'Active',
+              value: `${totalExecActive} / ${totalExecMaxLabel}`,
+              tone: getTone(
+                typeof totalExecMax === 'number' && totalExecMax > 0 ? (totalExecActive / totalExecMax) * 100 : 0,
+                DEFAULT_THRESHOLDS.THREADPOOL_QUEUE_USAGE.warn,
+                DEFAULT_THRESHOLDS.THREADPOOL_QUEUE_USAGE.crit,
+              ),
+            },
+            {
+              label: 'Queued 대기',
+              value: `${totalExecQueued} 건`,
+              tone: getTone(totalExecQueued, 10, 50),
+            },
             { label: '남은 용량', value: `${totalExecRemainingLabel} 건` },
             { label: 'Max', value: totalExecMaxLabel },
           ]}
@@ -234,6 +277,7 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
           color="#c8922f"
         />
       )}
+      </div>
     </div>
   )
 }

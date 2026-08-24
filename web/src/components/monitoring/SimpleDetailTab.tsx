@@ -47,8 +47,8 @@ export default function SimpleDetailTab<T extends { time: string }>({
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} />
-            <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={34} />
+            <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} interval="preserveStartEnd" minTickGap={45} />
+            <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={40} />
             <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: '#e2e8f0' }} />
             <Area
               type="monotone"
@@ -56,7 +56,8 @@ export default function SimpleDetailTab<T extends { time: string }>({
               stroke={color}
               strokeWidth={2}
               fill={`url(#grad-detail-${key})`}
-              dot={{ r: 3, fill: color }}
+              dot={false}
+              activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }}
               isAnimationActive
               animationDuration={600}
               animationEasing="ease-out"

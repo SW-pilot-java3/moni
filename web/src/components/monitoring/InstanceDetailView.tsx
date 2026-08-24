@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import MiniAreaCard from './MiniAreaCard'
 import StatusDot from '../ui/StatusDot'
+import { getTone, DEFAULT_THRESHOLDS } from '../../lib/thresholdUtils'
 import {
   getInstanceRealtimeMetrics,
   subscribeInstanceMetricStream,
@@ -17,7 +18,11 @@ function formatBytes(bytes: number | null) {
 }
 
 function shortTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  const d = new Date(iso)
+  const h = String(d.getHours()).padStart(2, '0')
+  const m = String(d.getMinutes()).padStart(2, '0')
+  const s = String(d.getSeconds()).padStart(2, '0')
+  return `${h}:${m}:${s}`
 }
 
 export default function InstanceDetailView({
@@ -77,15 +82,19 @@ export default function InstanceDetailView({
 
       <div className="mb-6 grid grid-cols-2 gap-4">
         <MiniAreaCard
-          icon="🖥️"
           title="CPU"
-          stats={[{ label: '사용률', value: latest?.cpuUsagePct !== null && latest ? `${latest.cpuUsagePct?.toFixed(1)}%` : '—' }]}
+          stats={[
+            {
+              label: '사용률',
+              value: latest?.cpuUsagePct !== null && latest ? `${latest.cpuUsagePct?.toFixed(1)}%` : '—',
+              tone: getTone(latest?.cpuUsagePct, DEFAULT_THRESHOLDS.CPU_USAGE.warn, DEFAULT_THRESHOLDS.CPU_USAGE.crit),
+            },
+          ]}
           data={cpuTimeline}
           dataKey="cpuPct"
           color="#5b7fa6"
         />
         <MiniAreaCard
-          icon="🧠"
           title="가용 메모리"
           stats={[{ label: '가용', value: latest ? formatBytes(latest.memAvailableBytes) : '—' }]}
           data={memTimeline}

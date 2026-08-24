@@ -335,7 +335,8 @@ export default function HistoryPage() {
                     stroke="#5b7fa6"
                     strokeWidth={2}
                     fill="url(#grad-history)"
-                    dot={{ r: 3, fill: '#5b7fa6' }}
+                    dot={false}
+                    activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }}
                     connectNulls
                   />
                 </AreaChart>
