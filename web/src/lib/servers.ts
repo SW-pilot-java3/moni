@@ -112,6 +112,8 @@ export interface ServerRealtimeSeriesPoint {
   jvmHeapMaxBytes: number
   jvmOldGenUsedBytes: number
   gcPauseSecondsSum: number
+  threadsLive?: number
+  threadsBlocked?: number
   totalRps: number
   avgLatencyMs: number
   hikaricpActiveTotal: number

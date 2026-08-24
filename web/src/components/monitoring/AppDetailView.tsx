@@ -11,8 +11,9 @@ import {
 import StatusDot from '../ui/StatusDot'
 import OverviewTab from './OverviewTab'
 import HttpApiTab from './HttpApiTab'
-import SimpleDetailTab from './SimpleDetailTab'
-import { getTone, DEFAULT_THRESHOLDS } from '../../lib/thresholdUtils'
+import JvmTab from './JvmTab'
+import HikariTab from './HikariTab'
+import ThreadPoolTab from './ThreadPoolTab'
 
 const MAX_SERIES_POINTS = 30
 
@@ -42,6 +43,8 @@ function toSeriesPoint(event: ServerSseStreamEvent): ServerRealtimeSeriesPoint {
     jvmHeapMaxBytes: event.jvm.heapMaxBytes,
     jvmOldGenUsedBytes: 0,
     gcPauseSecondsSum: event.jvm.gcPauseSecondsSum,
+    threadsLive: event.jvm.threadsLive,
+    threadsBlocked: event.jvm.threadsBlocked,
     totalRps: event.summary.totalRps,
     avgLatencyMs: event.summary.avgLatencyMs,
     hikaricpActiveTotal: event.summary.hikaricpActiveTotal,
@@ -75,6 +78,7 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
   const [tab, setTab] = useState<TabKey>('overview')
   const [metrics, setMetrics] = useState<ServerRealtimeMetrics | null>(null)
   const [connected, setConnected] = useState(false)
+  const [threads, setThreads] = useState<{ live: number; blocked: number }>({ live: 0, blocked: 0 })
   const uptimeRef = useRef(0)
 
   useEffect(() => {
@@ -91,6 +95,7 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
       server.serverId,
       (event) => {
         setConnected(true)
+        setThreads({ live: event.jvm.threadsLive ?? 0, blocked: event.jvm.threadsBlocked ?? 0 })
         const current = { ...toCurrent(event), processUptimeSeconds: uptimeRef.current }
         setMetrics((prev) => ({
           current,
@@ -139,6 +144,9 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
   const avgLatency = current?.httpEndpoints.length
     ? current.httpEndpoints.reduce((sum, e) => sum + e.avgLatencyMs, 0) / current.httpEndpoints.length
     : 0
+  const maxLatency = current?.httpEndpoints.length
+    ? Math.max(...current.httpEndpoints.map((e) => e.maxLatencyMs))
+    : 0
   const avgErrorRate = current?.httpEndpoints.length
     ? current.httpEndpoints.reduce((sum, e) => sum + e.errorRatePct, 0) / current.httpEndpoints.length
     : 0
@@ -176,107 +184,57 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
 
       <div className="flex-1 flex flex-col min-h-0">
         {tab === 'overview' && (
-        <OverviewTab
-          onNavigateTab={(k) => setTab(k as TabKey)}
-          rpsLatencyTimeline={rpsLatencyTimeline}
-          heapTimeline={heapTimeline}
-          hikariTimeline={hikariTimeline}
-          executorTimeline={executorTimeline}
-          http={{ rps: totalRps, avgMs: avgLatency, errorRate: avgErrorRate }}
-          jvm={{ heapUsage: heapUsagePct, oldGenMb: formatMb(latestSeries?.jvmOldGenUsedBytes), gcPauseS: latestSeries?.gcPauseSecondsSum ?? 0 }}
-          hikari={{ active: totalHikariActive, max: totalHikariMax, idle: totalHikariIdle, pending: totalHikariPending }}
-          threadPool={{ active: totalExecActive, max: totalExecMaxLabel, queued: totalExecQueued, remaining: totalExecRemainingLabel }}
-        />
-      )}
-      {tab === 'http' && (
-        <HttpApiTab
-          endpoints={current?.httpEndpoints ?? []}
-          rpsLatencyTimeline={rpsLatencyTimeline}
-          totalRps={totalRps}
-          avgLatency={avgLatency}
-          avgErrorRate={avgErrorRate}
-        />
-      )}
-      {tab === 'jvm' && (
-        <SimpleDetailTab
-          title="JVM 메모리 & GC 상세"
-          stats={[
-            {
-              label: 'Heap 사용률',
-              value: `${heapUsagePct}%`,
-              tone: getTone(parseFloat(heapUsagePct) || 0, DEFAULT_THRESHOLDS.JVM_HEAP_USAGE.warn, DEFAULT_THRESHOLDS.JVM_HEAP_USAGE.crit),
-            },
-            {
-              label: 'Old Gen',
-              value: `${formatMb(latestSeries?.jvmOldGenUsedBytes)} MB`,
-              tone: getTone(
-                latestSeries && latestSeries.jvmHeapMaxBytes > 0
-                  ? (latestSeries.jvmOldGenUsedBytes / latestSeries.jvmHeapMaxBytes) * 100
-                  : 0,
-                DEFAULT_THRESHOLDS.JVM_OLD_GEN_USAGE.warn,
-                DEFAULT_THRESHOLDS.JVM_OLD_GEN_USAGE.crit,
-              ),
-            },
-            {
-              label: 'GC 정지 시간(누적)',
-              value: `${(latestSeries?.gcPauseSecondsSum ?? 0).toFixed(3)}s`,
-              tone: getTone(latestSeries?.gcPauseSecondsSum ?? 0, DEFAULT_THRESHOLDS.GC_PAUSE_TIME.warn, DEFAULT_THRESHOLDS.GC_PAUSE_TIME.crit),
-            },
-            { label: '가동 시간', value: current ? `${Math.round(current.processUptimeSeconds / 60)}분` : '—' },
-          ]}
-          data={heapTimeline}
-          dataKey="heapMb"
-          color="#9b8ac1"
-        />
-      )}
-      {tab === 'hikari' && (
-        <SimpleDetailTab
-          title="HikariCP DB 커넥션 풀 상세"
-          stats={[
-            {
-              label: 'Active',
-              value: `${totalHikariActive}`,
-              tone: getTone(
-                totalHikariMax > 0 ? (totalHikariActive / totalHikariMax) * 100 : 0,
-                DEFAULT_THRESHOLDS.HIKARICP_POOL_USAGE.warn,
-                DEFAULT_THRESHOLDS.HIKARICP_POOL_USAGE.crit,
-              ),
-            },
-            { label: 'Max', value: `${totalHikariMax}` },
-            { label: 'Idle 유휴', value: `${totalHikariIdle} 개` },
-            { label: 'Pending 대기', value: `${totalHikariPending} 개` },
-          ]}
-          data={hikariTimeline}
-          dataKey="active"
-          color="#4a8c6f"
-        />
-      )}
-      {tab === 'threadpool' && (
-        <SimpleDetailTab
-          title="ThreadPool 비동기 스레드 상세"
-          stats={[
-            {
-              label: 'Active',
-              value: `${totalExecActive} / ${totalExecMaxLabel}`,
-              tone: getTone(
-                typeof totalExecMax === 'number' && totalExecMax > 0 ? (totalExecActive / totalExecMax) * 100 : 0,
-                DEFAULT_THRESHOLDS.THREADPOOL_QUEUE_USAGE.warn,
-                DEFAULT_THRESHOLDS.THREADPOOL_QUEUE_USAGE.crit,
-              ),
-            },
-            {
-              label: 'Queued 대기',
-              value: `${totalExecQueued} 건`,
-              tone: getTone(totalExecQueued, 10, 50),
-            },
-            { label: '남은 용량', value: `${totalExecRemainingLabel} 건` },
-            { label: 'Max', value: totalExecMaxLabel },
-          ]}
-          data={executorTimeline}
-          dataKey="active"
-          color="#c8922f"
-        />
-      )}
+          <OverviewTab
+            onNavigateTab={(k) => setTab(k as TabKey)}
+            rpsLatencyTimeline={rpsLatencyTimeline}
+            heapTimeline={heapTimeline}
+            hikariTimeline={hikariTimeline}
+            executorTimeline={executorTimeline}
+            http={{ rps: totalRps, avgMs: avgLatency, errorRate: avgErrorRate }}
+            jvm={{ heapUsage: heapUsagePct, oldGenMb: formatMb(latestSeries?.jvmOldGenUsedBytes), gcPauseS: latestSeries?.gcPauseSecondsSum ?? 0 }}
+            hikari={{ active: totalHikariActive, max: totalHikariMax, idle: totalHikariIdle, pending: totalHikariPending }}
+            threadPool={{ active: totalExecActive, max: totalExecMaxLabel, queued: totalExecQueued, remaining: totalExecRemainingLabel }}
+          />
+        )}
+        {tab === 'http' && (
+          <HttpApiTab
+            endpoints={current?.httpEndpoints ?? []}
+            rpsLatencyTimeline={rpsLatencyTimeline}
+            totalRps={totalRps}
+            avgLatency={avgLatency}
+            maxLatency={maxLatency}
+            avgErrorRate={avgErrorRate}
+          />
+        )}
+        {tab === 'jvm' && (
+          <JvmTab
+            current={current}
+            series={series}
+            latest={latestSeries}
+            threadsLive={threads.live}
+            threadsBlocked={threads.blocked}
+          />
+        )}
+        {tab === 'hikari' && (
+          <HikariTab
+            pools={current?.hikaricpPools ?? []}
+            series={series}
+            totalActive={totalHikariActive}
+            totalMax={totalHikariMax}
+            totalIdle={totalHikariIdle}
+            totalPending={totalHikariPending}
+          />
+        )}
+        {tab === 'threadpool' && (
+          <ThreadPoolTab
+            executors={current?.executors ?? []}
+            series={series}
+            totalActive={totalExecActive}
+            totalMaxLabel={totalExecMaxLabel}
+            totalQueued={totalExecQueued}
+            totalRemainingLabel={totalExecRemainingLabel}
+          />
+        )}
       </div>
     </div>
   )
