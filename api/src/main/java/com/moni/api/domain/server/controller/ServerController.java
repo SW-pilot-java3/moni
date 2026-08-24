@@ -15,6 +15,7 @@ import com.moni.api.domain.server.service.ServerService;
 import com.moni.api.domain.server.service.ServerSseService;
 import com.moni.api.domain.server.service.ServerThresholdService;
 import com.moni.api.global.response.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -37,6 +38,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+@Tag(name = "서버")
 @Validated
 @RestController
 @RequestMapping("/api/v1/servers")
