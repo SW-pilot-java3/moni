@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import MiniAreaCard from './MiniAreaCard'
-import StatusDot from '../ui/StatusDot'
+import StatusDot, { STREAM_STATUS_CONFIG, type StreamStatus } from '../ui/StatusDot'
 import { getTone, DEFAULT_THRESHOLDS } from '../../lib/thresholdUtils'
 import {
   getInstanceRealtimeMetrics,
@@ -35,18 +35,25 @@ export default function InstanceDetailView({
   onSelectApp: (serverId: number) => void
 }) {
   const [metrics, setMetrics] = useState<InstanceRealtimeMetricPoint[]>([])
-  const [connected, setConnected] = useState(false)
+  const [streamStatus, setStreamStatus] = useState<StreamStatus>('syncing')
 
   useEffect(() => {
     setMetrics([])
-    setConnected(false)
+    setStreamStatus('syncing')
 
-    getInstanceRealtimeMetrics(instance.instanceId).then(setMetrics)
+    getInstanceRealtimeMetrics(instance.instanceId)
+      .then((res) => {
+        setMetrics(res)
+        setStreamStatus((prev) => (prev === 'connected' ? 'connected' : 'connecting'))
+      })
+      .catch(() => {
+        setStreamStatus('disconnected')
+      })
 
     const unsubscribe = subscribeInstanceMetricStream(
       instance.instanceId,
       (event) => {
-        setConnected(true)
+        setStreamStatus('connected')
         setMetrics((prev) =>
           [
             ...prev,
@@ -54,7 +61,10 @@ export default function InstanceDetailView({
           ].slice(-MAX_SERIES_POINTS),
         )
       },
-      () => setConnected(false),
+      undefined,
+      () => {
+        setStreamStatus('disconnected')
+      },
     )
 
     return unsubscribe
@@ -77,7 +87,10 @@ export default function InstanceDetailView({
             {instance.ip} · 앱 {instance.serverCount}개
           </span>
         </h1>
-        <StatusDot tone={connected ? 'normal' : 'idle'} label={connected ? 'SSE 연결됨' : 'SSE 연결 대기'} />
+        <StatusDot
+          tone={STREAM_STATUS_CONFIG[streamStatus].tone}
+          label={STREAM_STATUS_CONFIG[streamStatus].label}
+        />
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-4">

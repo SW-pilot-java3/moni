@@ -162,8 +162,9 @@ export default function Sidebar() {
                               <span className="truncate">{srv.name}</span>
                               <span
                                 className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                  srv.status === 'CONNECTED' ? 'bg-brand-500' : 'bg-slate-300'
+                                  srv.status === 'CONNECTED' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' : 'bg-slate-300'
                                 }`}
+                                title={srv.status === 'CONNECTED' ? '연결됨 (CONNECTED)' : '연결 대기 (DISCONNECTED)'}
                               />
                             </Link>
                           )

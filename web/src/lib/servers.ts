@@ -183,9 +183,14 @@ export interface ServerSseStreamEvent {
 export function subscribeServerMetricStream(
   serverId: number,
   onMetric: (event: ServerSseStreamEvent) => void,
+  onOpen?: () => void,
   onError?: () => void,
 ): () => void {
   const source = new EventSource(buildSseUrl(`/api/v1/servers/${serverId}/stream`))
+
+  if (onOpen) {
+    source.onopen = onOpen
+  }
 
   source.addEventListener('server_metric', (e) => {
     try {

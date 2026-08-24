@@ -8,7 +8,7 @@ import {
   type ServerRealtimeSeriesPoint,
   type ServerSseStreamEvent,
 } from '../../lib/servers'
-import StatusDot from '../ui/StatusDot'
+import StatusDot, { STREAM_STATUS_CONFIG, type StreamStatus } from '../ui/StatusDot'
 import OverviewTab from './OverviewTab'
 import HttpApiTab from './HttpApiTab'
 import JvmTab from './JvmTab'
@@ -77,24 +77,29 @@ function shortTime(iso: string) {
 export default function AppDetailView({ server }: { server: ServerItem }) {
   const [tab, setTab] = useState<TabKey>('overview')
   const [metrics, setMetrics] = useState<ServerRealtimeMetrics | null>(null)
-  const [connected, setConnected] = useState(false)
+  const [streamStatus, setStreamStatus] = useState<StreamStatus>('syncing')
   const [threads, setThreads] = useState<{ live: number; blocked: number }>({ live: 0, blocked: 0 })
   const uptimeRef = useRef(0)
 
   useEffect(() => {
     setMetrics(null)
-    setConnected(false)
+    setStreamStatus('syncing')
     uptimeRef.current = 0
 
-    getServerRealtimeMetrics(server.serverId, MAX_SERIES_POINTS).then((res) => {
-      uptimeRef.current = res.current?.processUptimeSeconds ?? 0
-      setMetrics(res)
-    })
+    getServerRealtimeMetrics(server.serverId, MAX_SERIES_POINTS)
+      .then((res) => {
+        uptimeRef.current = res.current?.processUptimeSeconds ?? 0
+        setMetrics(res)
+        setStreamStatus((prev) => (prev === 'connected' ? 'connected' : 'connecting'))
+      })
+      .catch(() => {
+        setStreamStatus('disconnected')
+      })
 
     const unsubscribe = subscribeServerMetricStream(
       server.serverId,
       (event) => {
-        setConnected(true)
+        setStreamStatus('connected')
         setThreads({ live: event.jvm.threadsLive ?? 0, blocked: event.jvm.threadsBlocked ?? 0 })
         const current = { ...toCurrent(event), processUptimeSeconds: uptimeRef.current }
         setMetrics((prev) => ({
@@ -102,7 +107,10 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
           series: [...(prev?.series ?? []), toSeriesPoint(event)].slice(-MAX_SERIES_POINTS),
         }))
       },
-      () => setConnected(false),
+      undefined,
+      () => {
+        setStreamStatus('disconnected')
+      },
     )
 
     return unsubscribe
@@ -163,7 +171,10 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <StatusDot tone={connected ? 'normal' : 'idle'} label={connected ? 'SSE 연결됨' : 'SSE 연결 대기'} />
+          <StatusDot
+            tone={STREAM_STATUS_CONFIG[streamStatus].tone}
+            label={STREAM_STATUS_CONFIG[streamStatus].label}
+          />
         </div>
       </div>
 

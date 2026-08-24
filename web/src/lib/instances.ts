@@ -87,9 +87,14 @@ export interface InstanceSseStreamEvent {
 export function subscribeInstanceMetricStream(
   instanceId: number,
   onMetric: (event: InstanceSseStreamEvent) => void,
+  onOpen?: () => void,
   onError?: () => void,
 ): () => void {
   const source = new EventSource(buildSseUrl(`/api/v1/instances/${instanceId}/stream`))
+
+  if (onOpen) {
+    source.onopen = onOpen
+  }
 
   source.addEventListener('instance_metric', (e) => {
     try {
