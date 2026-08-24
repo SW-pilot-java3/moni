@@ -1,5 +1,7 @@
 package com.moni.api.domain.server.dto.response;
 
+import static com.moni.api.domain.server.mapper.ServerRealtimeMetricMapper.isValidEndpointUri;
+
 import com.moni.api.domain.server.entity.JvmMetric;
 import com.moni.api.domain.server.entity.ServerExecutorMetric;
 import com.moni.api.domain.server.entity.ServerHikariCpPoolMetric;
@@ -28,6 +30,10 @@ public class ServerRealtimeSeriesDto {
     private Integer executorActiveTotal;
 
     public static ServerRealtimeSeriesDto from(ServerRealtimeMetric metric) {
+        return from(metric, 0.0);
+    }
+
+    public static ServerRealtimeSeriesDto from(ServerRealtimeMetric metric, Double totalRps) {
         JvmMetric jvm = metric.getJvmMetric();
 
         Long heapUsed = jvm != null ? jvm.getJvmHeapUsedBytes() : 0L;
@@ -39,11 +45,13 @@ public class ServerRealtimeSeriesDto {
         long totalCount = 0L;
         if (metric.getHttpEndpoints() != null) {
             for (ServerHttpEndpointMetric ep : metric.getHttpEndpoints()) {
-                if (ep.getRequestsSum() != null) {
-                    totalSum += ep.getRequestsSum();
-                }
-                if (ep.getRequestsCount() != null) {
-                    totalCount += ep.getRequestsCount();
+                if (isValidEndpointUri(ep.getUri())) {
+                    if (ep.getRequestsSum() != null) {
+                        totalSum += ep.getRequestsSum();
+                    }
+                    if (ep.getRequestsCount() != null) {
+                        totalCount += ep.getRequestsCount();
+                    }
                 }
             }
         }
@@ -73,7 +81,7 @@ public class ServerRealtimeSeriesDto {
                 .jvmHeapMaxBytes(heapMax)
                 .jvmOldGenUsedBytes(oldGenUsed)
                 .gcPauseSecondsSum(gcPauseSum)
-                .totalRps(0.0)
+                .totalRps(totalRps != null ? Math.round(totalRps * 10.0) / 10.0 : 0.0)
                 .avgLatencyMs(Math.round(avgLatency * 10.0) / 10.0)
                 .hikaricpActiveTotal(activeHikari)
                 .executorActiveTotal(activeExecutors)

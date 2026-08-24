@@ -1,10 +1,8 @@
 package com.moni.api.domain.server.service;
 
 import com.moni.api.domain.server.dto.response.ServerSseStreamResponse;
-import com.moni.api.domain.server.exception.ServerErrorCode;
-import com.moni.api.domain.server.repository.ServerRepository;
 import com.moni.api.domain.server.repository.SseEmitterRepository;
-import com.moni.api.global.error.exception.CustomException;
+import com.moni.api.domain.server.validator.ServerValidator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,13 +20,11 @@ public class ServerSseService {
     private static final String EVENT_SERVER_METRIC = "server_metric";
     private static final String EVENT_CONNECT = "connect";
 
-    private final ServerRepository serverRepository;
+    private final ServerValidator serverValidator;
     private final SseEmitterRepository sseEmitterRepository;
 
-    public SseEmitter subscribe(Long serverId) {
-        if (!serverRepository.existsById(serverId)) {
-            throw new CustomException(ServerErrorCode.SERVER_NOT_FOUND);
-        }
+    public SseEmitter subscribe(Long serverId, Long userId) {
+        serverValidator.validateAndGetServer(serverId, userId);
 
         SseEmitter emitter = new SseEmitter(DEFAULT_TIMEOUT);
 

@@ -1,15 +1,14 @@
 package com.moni.api.domain.server.service;
 
 import com.moni.api.domain.server.entity.ServerHikariCpPoolMetric;
-
-import java.util.List;
+import java.util.Collection;
 
 final class HikariPoolUsageCalculator {
 
     private HikariPoolUsageCalculator() {
     }
 
-    static Double calculate(List<ServerHikariCpPoolMetric> pools) {
+    static Double calculate(Collection<ServerHikariCpPoolMetric> pools) {
         if (pools == null) {
             return null;
         }

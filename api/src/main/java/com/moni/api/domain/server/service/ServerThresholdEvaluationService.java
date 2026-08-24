@@ -10,7 +10,7 @@ import com.moni.api.domain.server.repository.ServerThresholdRepository;
 import com.moni.api.global.threshold.ThresholdSeverity;
 import com.moni.api.global.threshold.ThresholdSeverityResolver;
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -29,7 +29,7 @@ class ServerThresholdEvaluationService {
     private final ApplicationEventPublisher eventPublisher;
 
     void evaluate(Long serverId, LocalDateTime collectedAt, ServerRealtimeMetric realtimeMetric,
-            JvmMetric previousJvmMetric, List<ServerHttpEndpointMetric> previousHttpEndpoints) {
+            JvmMetric previousJvmMetric, Collection<ServerHttpEndpointMetric> previousHttpEndpoints) {
         JvmMetric jvmMetric = realtimeMetric.getJvmMetric();
 
         Double jvmHeapUsagePct = JvmHeapUsageCalculator.calculate(jvmMetric);

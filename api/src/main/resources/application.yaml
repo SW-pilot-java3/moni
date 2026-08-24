@@ -27,4 +27,4 @@ spring:
     show-sql: true
 
 anthropic:
-  api-key: ${ANTHROPIC_API_KEY}
+  api-key: ${ANTHROPIC_API_KEY:}

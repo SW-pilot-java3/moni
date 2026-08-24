@@ -69,7 +69,8 @@ public class InstanceRealtimeMetricService {
 
         Optional<InstanceRealtimeMetric> previousRealtimeMetric = instanceRealtimeMetricRepository
                 .findFirstByInstanceIdAndCollectedAtLessThanOrderByCollectedAtDesc(instanceId, request.collectedAt());
-        CpuMetrics previousCpuMetrics = previousRealtimeMetric.map(InstanceRealtimeMetric::getCpuMetrics).orElse(null);
+        InstanceRealtimeMetric previousMetric = previousRealtimeMetric.orElse(null);
+        CpuMetrics previousCpuMetrics = previousMetric != null ? previousMetric.getCpuMetrics() : null;
         Double cpuUsagePct = CpuUsageCalculator.calculate(previousCpuMetrics, cpuMetrics);
 
         InstanceRealtimeMetric metric = InstanceRealtimeMetric.builder()
@@ -98,7 +99,7 @@ public class InstanceRealtimeMetricService {
             instanceCpuMetricRepository.save(cpuMetric);
         }
 
-        List<InstanceDiskMetric> diskMetrics = new ArrayList<>();
+        List<InstanceDiskMetric> currentDiskMetrics = new ArrayList<>();
         for (InstanceRealtimeMetricCreateRequest.DiskDevice diskDevice : payload.disks()) {
             InstanceDiskMetric diskMetric = InstanceDiskMetric.builder()
                     .realtimeMetric(metric)
@@ -110,8 +111,7 @@ public class InstanceRealtimeMetricService {
                     .writtenBytesTotal(diskDevice.writtenBytesTotal())
                     .ioTimeSecondsTotal(diskDevice.ioTimeSecondsTotal())
                     .build();
-            instanceDiskMetricsRepository.save(diskMetric);
-            diskMetrics.add(diskMetric);
+            currentDiskMetrics.add(instanceDiskMetricsRepository.save(diskMetric));
         }
 
         List<InstanceFileSystemMetric> fileSystemMetrics = new ArrayList<>();
@@ -127,7 +127,7 @@ public class InstanceRealtimeMetricService {
             fileSystemMetrics.add(fileSystemMetric);
         }
 
-        List<InstanceNetworkMetric> networkMetrics = new ArrayList<>();
+        List<InstanceNetworkMetric> currentNetworkMetrics = new ArrayList<>();
         for (InstanceRealtimeMetricCreateRequest.NetworkInterfaceMetric networkInterface : payload.networks()) {
             InstanceNetworkMetric networkMetric = InstanceNetworkMetric.builder()
                     .realtimeMetric(metric)
@@ -138,25 +138,35 @@ public class InstanceRealtimeMetricService {
                     .rxErrorsTotal(networkInterface.rxErrorsTotal())
                     .txErrorsTotal(networkInterface.txErrorsTotal())
                     .build();
-            instanceNetworkMetricsRepository.save(networkMetric);
-            networkMetrics.add(networkMetric);
+            currentNetworkMetrics.add(instanceNetworkMetricsRepository.save(networkMetric));
         }
 
-        LocalDateTime previousCollectedAt = previousRealtimeMetric.map(InstanceRealtimeMetric::getCollectedAt).orElse(null);
-        List<InstanceDiskMetric> previousDiskMetrics = previousCollectedAt == null ? List.of()
-                : instanceDiskMetricsRepository.findAllByInstanceIdAndCollectedAtBetween(
-                        instanceId, previousCollectedAt, previousCollectedAt);
-        List<InstanceNetworkMetric> previousNetworkMetrics = previousCollectedAt == null ? List.of()
-                : instanceNetworkMetricsRepository.findAllByInstanceIdAndCollectedAtBetween(
-                        instanceId, previousCollectedAt, previousCollectedAt);
+        DiskUsageCalculator.Result diskUsage = DiskUsageCalculator.Result.EMPTY;
+        NetworkUsageCalculator.Result networkUsage = NetworkUsageCalculator.Result.EMPTY;
+        List<InstanceDiskMetric> previousDiskMetrics = List.of();
+        List<InstanceNetworkMetric> previousNetworkMetrics = List.of();
 
-        Double diskLatencyMs = DiskLatencyCalculator.calculate(previousDiskMetrics, diskMetrics);
-        Double netErrorRate = NetErrorRateCalculator.calculate(previousNetworkMetrics, networkMetrics);
+        if (previousMetric != null) {
+            previousDiskMetrics = instanceDiskMetricsRepository
+                    .findAllByRealtimeMetricId(previousMetric.getId());
+            previousNetworkMetrics = instanceNetworkMetricsRepository
+                    .findAllByRealtimeMetricId(previousMetric.getId());
+
+            diskUsage = DiskUsageCalculator.calculate(
+                    previousDiskMetrics, currentDiskMetrics, previousMetric.getCollectedAt(), request.collectedAt());
+            networkUsage = NetworkUsageCalculator.calculate(
+                    previousNetworkMetrics, currentNetworkMetrics, previousMetric.getCollectedAt(), request.collectedAt());
+        }
+
+        Double diskLatencyMs = DiskLatencyCalculator.calculate(previousDiskMetrics, currentDiskMetrics);
+        Double netErrorRate = NetErrorRateCalculator.calculate(previousNetworkMetrics, currentNetworkMetrics);
 
         instanceThresholdEvaluationService.evaluate(instanceId, request.collectedAt(), cpuUsagePct, memoryMetrics,
                 fileSystemMetrics, diskLatencyMs, netErrorRate);
 
         eventPublisher.publishEvent(new InstanceMetricStreamEvent(
-                instanceId, request.collectedAt(), cpuUsagePct, memoryMetrics.getMemAvailableBytes()));
+                instanceId, request.collectedAt(), cpuUsagePct, memoryMetrics.getMemAvailableBytes(),
+                diskUsage.readBytesPerSec(), diskUsage.writeBytesPerSec(), diskUsage.utilizationPct(),
+                networkUsage.rxBytesPerSec(), networkUsage.txBytesPerSec(), networkUsage.errorsPerSec()));
     }
 }

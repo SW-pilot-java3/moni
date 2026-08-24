@@ -13,8 +13,8 @@ import com.moni.api.domain.server.entity.Server;
 import com.moni.api.domain.server.entity.ServerMetricKey;
 import com.moni.api.domain.server.entity.ServerThreshold;
 import com.moni.api.domain.server.exception.ServerErrorCode;
-import com.moni.api.domain.server.repository.ServerRepository;
 import com.moni.api.domain.server.repository.ServerThresholdRepository;
+import com.moni.api.domain.server.validator.ServerValidator;
 import com.moni.api.global.error.exception.CustomException;
 import java.util.List;
 import java.util.Optional;
@@ -34,10 +34,12 @@ class ServerThresholdServiceTest {
     private ServerThresholdService serverThresholdService;
 
     @Mock
-    private ServerRepository serverRepository;
+    private ServerValidator serverValidator;
 
     @Mock
     private ServerThresholdRepository serverThresholdRepository;
+
+    private final Long userId = 1L;
 
     @Test
     @DisplayName("서버 임계치 목록 조회 성공")
@@ -66,11 +68,11 @@ class ServerThresholdServiceTest {
                 .criticalValue(800.0)
                 .build();
 
-        given(serverRepository.existsById(serverId)).willReturn(true);
+        given(serverValidator.validateAndGetServer(serverId, userId)).willReturn(server);
         given(serverThresholdRepository.findByServerId(serverId)).willReturn(List.of(threshold1, threshold2));
 
         // when
-        List<ServerThresholdResponse> response = serverThresholdService.getThresholds(serverId);
+        List<ServerThresholdResponse> response = serverThresholdService.getThresholds(serverId, userId);
 
         // then
         assertThat(response).hasSize(2);
@@ -81,15 +83,16 @@ class ServerThresholdServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 서버 임계치 목록 조회 시 예외 발생")
+    @DisplayName("존재하지 않거나 권한 없는 서버 임계치 목록 조회 시 예외 발생")
     void getThresholds_serverNotFound_throwsException() {
         // given
         Long serverId = 999L;
 
-        given(serverRepository.existsById(serverId)).willReturn(false);
+        given(serverValidator.validateAndGetServer(serverId, userId))
+                .willThrow(new CustomException(ServerErrorCode.SERVER_NOT_FOUND));
 
         // when & then
-        assertThatThrownBy(() -> serverThresholdService.getThresholds(serverId))
+        assertThatThrownBy(() -> serverThresholdService.getThresholds(serverId, userId))
                 .isInstanceOf(CustomException.class)
                 .hasMessage(ServerErrorCode.SERVER_NOT_FOUND.getMessage());
     }
@@ -125,12 +128,12 @@ class ServerThresholdServiceTest {
                 .thresholds(List.of(itemRequest))
                 .build();
 
-        given(serverRepository.existsById(serverId)).willReturn(true);
+        given(serverValidator.validateAndGetServer(serverId, userId)).willReturn(server);
         given(serverThresholdRepository.findByServerIdAndMetricKey(serverId, ServerMetricKey.HTTP_AVG_LATENCY))
                 .willReturn(Optional.of(existingThreshold));
 
         // when
-        ServerThresholdUpdateResponse response = serverThresholdService.updateThresholds(serverId, patchRequest);
+        ServerThresholdUpdateResponse response = serverThresholdService.updateThresholds(serverId, userId, patchRequest);
 
         // then
         assertThat(response).isNotNull();
@@ -141,7 +144,7 @@ class ServerThresholdServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 서버 ID로 요청 시 SERVER_NOT_FOUND 예외 발생")
+    @DisplayName("존재하지 않거나 권한 없는 서버 ID로 수정 요청 시 예외 발생")
     void updateThresholds_serverNotFound_throwsException() {
         // given
         Long serverId = 999L;
@@ -153,10 +156,11 @@ class ServerThresholdServiceTest {
                         .build()))
                 .build();
 
-        given(serverRepository.existsById(serverId)).willReturn(false);
+        given(serverValidator.validateAndGetServer(serverId, userId))
+                .willThrow(new CustomException(ServerErrorCode.SERVER_NOT_FOUND));
 
         // when & then
-        assertThatThrownBy(() -> serverThresholdService.updateThresholds(serverId, patchRequest))
+        assertThatThrownBy(() -> serverThresholdService.updateThresholds(serverId, userId, patchRequest))
                 .isInstanceOf(CustomException.class)
                 .hasMessage(ServerErrorCode.SERVER_NOT_FOUND.getMessage());
     }
@@ -166,6 +170,7 @@ class ServerThresholdServiceTest {
     void updateThresholds_invalidThresholdValue_throwsException() {
         // given
         Long serverId = 1L;
+        Server server = Mockito.mock(Server.class);
 
         ServerThresholdsPatchRequest patchRequest = ServerThresholdsPatchRequest.builder()
                 .thresholds(List.of(ServerThresholdItemRequest.builder()
@@ -175,10 +180,10 @@ class ServerThresholdServiceTest {
                         .build()))
                 .build();
 
-        given(serverRepository.existsById(serverId)).willReturn(true);
+        given(serverValidator.validateAndGetServer(serverId, userId)).willReturn(server);
 
         // when & then
-        assertThatThrownBy(() -> serverThresholdService.updateThresholds(serverId, patchRequest))
+        assertThatThrownBy(() -> serverThresholdService.updateThresholds(serverId, userId, patchRequest))
                 .isInstanceOf(CustomException.class)
                 .hasMessage(ServerErrorCode.INVALID_THRESHOLD_VALUE.getMessage());
     }
@@ -188,6 +193,8 @@ class ServerThresholdServiceTest {
     void updateThresholds_thresholdNotFound_throwsServerThresholdNotFoundException() {
         // given
         Long serverId = 1L;
+        Server server = Mockito.mock(Server.class);
+
         ServerThresholdsPatchRequest patchRequest = ServerThresholdsPatchRequest.builder()
                 .thresholds(List.of(ServerThresholdItemRequest.builder()
                         .metricKey(ServerMetricKey.HTTP_AVG_LATENCY)
@@ -196,12 +203,12 @@ class ServerThresholdServiceTest {
                         .build()))
                 .build();
 
-        given(serverRepository.existsById(serverId)).willReturn(true);
+        given(serverValidator.validateAndGetServer(serverId, userId)).willReturn(server);
         given(serverThresholdRepository.findByServerIdAndMetricKey(serverId, ServerMetricKey.HTTP_AVG_LATENCY))
                 .willReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> serverThresholdService.updateThresholds(serverId, patchRequest))
+        assertThatThrownBy(() -> serverThresholdService.updateThresholds(serverId, userId, patchRequest))
                 .isInstanceOf(CustomException.class)
                 .hasMessage(ServerErrorCode.SERVER_THRESHOLD_NOT_FOUND.getMessage());
     }

@@ -5,8 +5,6 @@ import DashboardPage from './pages/DashboardPage'
 import InstanceRegisterPage from './pages/InstanceRegisterPage'
 import AppLinkPage from './pages/AppLinkPage'
 import MonitoringPage from './pages/MonitoringPage'
-import HistoryPage from './pages/HistoryPage'
-import ManagePage from './pages/ManagePage'
 import ThresholdPage from './pages/ThresholdPage'
 
 export const router = createBrowserRouter([
@@ -19,8 +17,9 @@ export const router = createBrowserRouter([
       { path: '/instances/new', element: <InstanceRegisterPage /> },
       { path: '/apps/link', element: <AppLinkPage /> },
       { path: '/monitoring', element: <MonitoringPage /> },
-      { path: '/history', element: <HistoryPage /> },
-      { path: '/manage', element: <ManagePage /> },
+      { path: '/history', element: <Navigate to="/monitoring" replace /> },
+      { path: '/manage', element: <Navigate to="/dashboard" replace /> },
+      { path: '/hub', element: <Navigate to="/dashboard" replace /> },
       { path: '/thresholds/:scope?', element: <ThresholdPage /> },
     ],
   },

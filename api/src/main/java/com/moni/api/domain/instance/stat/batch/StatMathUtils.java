@@ -40,4 +40,19 @@ final class StatMathUtils {
         }
         return nonNull.stream().mapToDouble(Double::doubleValue).max().orElse(0);
     }
+
+    static Double avgLong(List<Long> values) {
+        List<Long> nonNull = values.stream().filter(Objects::nonNull).toList();
+        if (nonNull.isEmpty()) {
+            return null;
+        }
+        return nonNull.stream().mapToLong(Long::longValue).average().orElse(0.0);
+    }
+
+    static Double round1(Double value) {
+        if (value == null) {
+            return null;
+        }
+        return Math.round(value * 10.0) / 10.0;
+    }
 }

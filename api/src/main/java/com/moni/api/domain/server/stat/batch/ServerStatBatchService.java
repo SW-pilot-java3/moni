@@ -1,5 +1,7 @@
 package com.moni.api.domain.server.stat.batch;
 
+import static com.moni.api.domain.server.mapper.ServerRealtimeMetricMapper.isValidEndpointUri;
+
 import com.moni.api.domain.server.entity.JvmMetric;
 import com.moni.api.domain.server.entity.Server;
 import com.moni.api.domain.server.entity.ServerExecutorMetric;
@@ -152,6 +154,7 @@ public class ServerStatBatchService {
             LocalDateTime from, LocalDateTime statTime) {
         List<ServerHttpEndpointMetric> allEndpoints = metrics.stream()
                 .flatMap(m -> m.getHttpEndpoints().stream())
+                .filter(ep -> isValidEndpointUri(ep.getUri()))
                 .toList();
 
         if (allEndpoints.isEmpty()) {

@@ -5,6 +5,7 @@ import com.moni.api.domain.instance.service.InstanceRealtimeMetricService;
 import com.moni.api.domain.instance.service.InstanceService;
 import com.moni.api.domain.instance.sse.InstanceMetricSseEmitterRegistry;
 import com.moni.api.global.response.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -14,8 +15,10 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.time.LocalDate;
 import java.util.List;
 
+@Tag(name = "인스턴스")
 @RestController
 @RequestMapping("/api/v1/instances")
 @RequiredArgsConstructor
@@ -73,6 +76,15 @@ public class InstanceController {
                                                                                                          @AuthenticationPrincipal Long userId) {
         List<InstanceRealtimeMetricResponse> response = instanceService.getRecentRealtimeMetrics(instanceId, userId);
         return ResponseEntity.status(HttpStatus.OK).body(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{instanceId}/metrics/history")
+    public ResponseEntity<ApiResponse<InstanceHistoryMetricsResponse>> getInstanceHistoryMetrics(
+            @PathVariable Long instanceId,
+            @AuthenticationPrincipal Long userId,
+            @RequestParam(required = false) LocalDate date) {
+        InstanceHistoryMetricsResponse response = instanceService.getInstanceHistoryMetrics(instanceId, userId, date);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @GetMapping(value = "/{instanceId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

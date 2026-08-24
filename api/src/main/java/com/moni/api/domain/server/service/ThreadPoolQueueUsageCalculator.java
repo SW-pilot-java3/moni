@@ -1,8 +1,7 @@
 package com.moni.api.domain.server.service;
 
 import com.moni.api.domain.server.entity.ServerExecutorMetric;
-
-import java.util.List;
+import java.util.Collection;
 
 final class ThreadPoolQueueUsageCalculator {
 
@@ -16,7 +15,7 @@ final class ThreadPoolQueueUsageCalculator {
     private ThreadPoolQueueUsageCalculator() {
     }
 
-    static Double calculate(List<ServerExecutorMetric> executors) {
+    static Double calculate(Collection<ServerExecutorMetric> executors) {
         if (executors == null) {
             return null;
         }

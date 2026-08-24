@@ -36,12 +36,48 @@ export function getInstances() {
   return api.get<InstanceListItem[]>('/api/v1/instances')
 }
 
+export interface ServerSummaryItem {
+  serverId: number
+  name: string
+  port: number | null
+  status: ServerApiStatus
+  lastReceivedAt: string | null
+  jvm?: {
+    heapUsedMB: number | null
+    heapUsedMaxMB: number | null
+    avgGcPauseMs: number | null
+  }
+  http?: {
+    rps: number | null
+    avgResTimeMs: number | null
+    errorRatePct: number | null
+  }
+  hikaricp?: {
+    active: number | null
+    activeMax: number | null
+    pending: number | null
+  }
+  executors?: {
+    active: number | null
+    max: number | null
+    queuedTasks: number | null
+  }
+}
+
+export function getServerSummaryList(instanceId: number) {
+  return api.get<ServerSummaryItem[]>(`/api/v1/servers/metrics/summary?instanceId=${instanceId}`)
+}
+
 export function getServers(instanceId: number) {
   return api.get<ServerItem[]>(`/api/v1/servers?instanceId=${instanceId}`)
 }
 
 export function createInstance(name: string, ip: string) {
   return api.post<InstanceCreateResult>('/api/v1/instances', { name, ip })
+}
+
+export function deleteInstance(instanceId: number) {
+  return api.delete<void>(`/api/v1/instances/${instanceId}`)
 }
 
 export type InstanceMetricKey = 'CPU_USAGE' | 'MEM_USAGE' | 'DISK_USAGE' | 'DISK_LATENCY' | 'NET_ERROR_RATE'
@@ -71,6 +107,12 @@ export interface InstanceRealtimeMetricPoint {
   collectedAt: string
   cpuUsagePct: number | null
   memAvailableBytes: number | null
+  diskReadBytesPerSec: number | null
+  diskWriteBytesPerSec: number | null
+  diskUtilizationPct: number | null
+  netRxBytesPerSec: number | null
+  netTxBytesPerSec: number | null
+  netErrorsPerSec: number | null
 }
 
 export function getInstanceRealtimeMetrics(instanceId: number) {
@@ -82,14 +124,25 @@ export interface InstanceSseStreamEvent {
   collectedAt: string
   cpuUsagePct: number | null
   memAvailableBytes: number | null
+  diskReadBytesPerSec: number | null
+  diskWriteBytesPerSec: number | null
+  diskUtilizationPct: number | null
+  netRxBytesPerSec: number | null
+  netTxBytesPerSec: number | null
+  netErrorsPerSec: number | null
 }
 
 export function subscribeInstanceMetricStream(
   instanceId: number,
   onMetric: (event: InstanceSseStreamEvent) => void,
+  onOpen?: () => void,
   onError?: () => void,
 ): () => void {
   const source = new EventSource(buildSseUrl(`/api/v1/instances/${instanceId}/stream`))
+
+  if (onOpen) {
+    source.onopen = onOpen
+  }
 
   source.addEventListener('instance_metric', (e) => {
     try {
@@ -104,4 +157,35 @@ export function subscribeInstanceMetricStream(
   }
 
   return () => source.close()
+}
+
+export interface InstanceHistorySeriesPoint {
+  statTime: string
+  cpuUsageAvg: number | null
+  cpuUsageMax: number | null
+  memAvailableAvg: number | null
+  readIopsAvg: number | null
+  writeIopsAvg: number | null
+  diskUsedPctMax: number | null
+  rxMbpsAvg: number | null
+  txMbpsAvg: number | null
+}
+
+export interface InstanceHistorySummary {
+  cpu: { cpuUsageAvg: number; cpuUsageMax: number; cpuIowaitAvg: number } | null
+  memory: { memAvailableAvg: number; memAvailableMin: number; swapUsedMax: number } | null
+  disk: { readIopsAvg: number; writeIopsAvg: number; diskUtilMax: number; diskUsedPctMax: number } | null
+  network: { rxMbpsAvg: number; txMbpsAvg: number; errorsSum: number } | null
+}
+
+export interface InstanceHistoryMetrics {
+  instanceId: number
+  date: string
+  summary: InstanceHistorySummary
+  series: InstanceHistorySeriesPoint[]
+}
+
+export function getInstanceHistoryMetrics(instanceId: number, date?: string) {
+  const query = date ? `?date=${date}` : ''
+  return api.get<InstanceHistoryMetrics>(`/api/v1/instances/${instanceId}/metrics/history${query}`)
 }

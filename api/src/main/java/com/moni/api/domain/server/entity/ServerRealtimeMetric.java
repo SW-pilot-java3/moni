@@ -11,8 +11,9 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -43,31 +44,31 @@ public class ServerRealtimeMetric {
     private JvmMetric jvmMetric;
 
     @OneToMany(mappedBy = "realtimeMetric", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ServerHttpEndpointMetric> httpEndpoints = new ArrayList<>();
+    private Set<ServerHttpEndpointMetric> httpEndpoints = new LinkedHashSet<>();
 
     @OneToMany(mappedBy = "realtimeMetric", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ServerHikariCpPoolMetric> hikaricpPools = new ArrayList<>();
+    private Set<ServerHikariCpPoolMetric> hikaricpPools = new LinkedHashSet<>();
 
     @OneToMany(mappedBy = "realtimeMetric", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ServerExecutorMetric> executors = new ArrayList<>();
+    private Set<ServerExecutorMetric> executors = new LinkedHashSet<>();
 
     @Builder
     public ServerRealtimeMetric(Long id, Long serverId, LocalDateTime collectedAt, JvmMetric jvmMetric,
-            List<ServerHttpEndpointMetric> httpEndpoints,
-            List<ServerHikariCpPoolMetric> hikaricpPools,
-            List<ServerExecutorMetric> executors) {
+            Collection<ServerHttpEndpointMetric> httpEndpoints,
+            Collection<ServerHikariCpPoolMetric> hikaricpPools,
+            Collection<ServerExecutorMetric> executors) {
         this.id = id;
         this.serverId = serverId;
         this.collectedAt = collectedAt;
         this.jvmMetric = jvmMetric;
         if (httpEndpoints != null) {
-            this.httpEndpoints = httpEndpoints;
+            this.httpEndpoints = new LinkedHashSet<>(httpEndpoints);
         }
         if (hikaricpPools != null) {
-            this.hikaricpPools = hikaricpPools;
+            this.hikaricpPools = new LinkedHashSet<>(hikaricpPools);
         }
         if (executors != null) {
-            this.executors = executors;
+            this.executors = new LinkedHashSet<>(executors);
         }
     }
 }

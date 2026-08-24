@@ -7,6 +7,7 @@ import com.moni.api.domain.server.entity.ServerThreshold;
 import com.moni.api.domain.server.repository.ServerRealtimeMetricRepository;
 import com.moni.api.global.threshold.ThresholdSeverityResolver;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -67,7 +68,7 @@ class ServerAnomalyDebounceEvaluator {
     }
 
     private List<Double> recentHttpEndpointValues(Long serverId,
-            BiFunction<List<ServerHttpEndpointMetric>, List<ServerHttpEndpointMetric>, Double> calculate) {
+            BiFunction<Collection<ServerHttpEndpointMetric>, Collection<ServerHttpEndpointMetric>, Double> calculate) {
         List<ServerRealtimeMetric> rows = serverRealtimeMetricRepository
                 .findByServerIdOrderByCollectedAtDesc(serverId, PageRequest.of(0, STREAK_LENGTH + 1));
 

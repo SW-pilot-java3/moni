@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -48,9 +49,9 @@ public class ServerRealtimeMetricService {
         Optional<ServerRealtimeMetric> previousRealtimeMetric = serverRealtimeMetricRepository
                 .findFirstByServerIdAndCollectedAtLessThanOrderByCollectedAtDesc(server.getId(), collectedAt);
         JvmMetric previousJvmMetric = previousRealtimeMetric.map(ServerRealtimeMetric::getJvmMetric).orElse(null);
-        List<ServerHttpEndpointMetric> previousHttpEndpoints = previousRealtimeMetric
+        Set<ServerHttpEndpointMetric> previousHttpEndpoints = previousRealtimeMetric
                 .map(ServerRealtimeMetric::getHttpEndpoints)
-                .orElse(List.of());
+                .orElse(Set.of());
 
         // 서버 실시간 원시 메트릭 DB 저장
         ServerRealtimeMetric realtimeMetric = ServerRealtimeMetricMapper.toEntity(server.getId(), collectedAt, payload);

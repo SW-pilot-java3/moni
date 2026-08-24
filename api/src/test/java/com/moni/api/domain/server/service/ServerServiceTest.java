@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 
 import com.moni.api.domain.instance.entity.Instance;
 import com.moni.api.domain.instance.exception.InstanceErrorCode;
-import com.moni.api.domain.instance.service.InstanceService;
 import com.moni.api.domain.server.dto.request.ServerCreateRequest;
 import com.moni.api.domain.server.dto.request.ServerUpdateRequest;
 import com.moni.api.domain.server.dto.response.ServerDeleteResponse;
@@ -18,6 +17,8 @@ import com.moni.api.domain.server.entity.Server;
 import com.moni.api.domain.server.entity.ServerStatus;
 import com.moni.api.domain.server.exception.ServerErrorCode;
 import com.moni.api.domain.server.repository.ServerRepository;
+import com.moni.api.domain.server.repository.ServerThresholdRepository;
+import com.moni.api.domain.server.validator.ServerValidator;
 import com.moni.api.domain.stat.entity.StatHikariCp;
 import com.moni.api.domain.stat.entity.StatHttp;
 import com.moni.api.domain.stat.entity.StatJvm;
@@ -26,9 +27,7 @@ import com.moni.api.domain.stat.repository.StatHikariCpRepository;
 import com.moni.api.domain.stat.repository.StatHttpRepository;
 import com.moni.api.domain.stat.repository.StatJvmRepository;
 import com.moni.api.domain.stat.repository.StatThreadPoolRepository;
-import com.moni.api.domain.server.repository.ServerThresholdRepository;
 import com.moni.api.global.error.exception.CustomException;
-
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -50,7 +49,7 @@ class ServerServiceTest {
     private ServerRepository serverRepository;
 
     @Mock
-    private InstanceService instanceService;
+    private ServerValidator serverValidator;
 
     @Mock
     private StatJvmRepository statJvmRepository;
@@ -66,6 +65,8 @@ class ServerServiceTest {
 
     @Mock
     private ServerThresholdRepository serverThresholdRepository;
+
+    private final Long userId = 1L;
 
     @Test
     @DisplayName("인스턴스 하위 서버 통계 요약 목록 조회 성공")
@@ -94,7 +95,7 @@ class ServerServiceTest {
         StatThreadPool statPool = StatThreadPool.builder().activeThreadsAvg(4.0).maxThreadsAvg(10.0).queuedTasksMax(2)
                 .build();
 
-        given(instanceService.getInstanceById(instanceId)).willReturn(mockInstance);
+        given(serverValidator.validateAndGetInstance(instanceId, userId)).willReturn(mockInstance);
         given(serverRepository.findByInstanceId(instanceId)).willReturn(List.of(server1, server2));
 
         given(statJvmRepository.findFirstByServerIdOrderByStatTimeDesc(100L)).willReturn(Optional.of(statJvm));
@@ -108,7 +109,7 @@ class ServerServiceTest {
         given(statThreadPoolRepository.findFirstByServerIdOrderByStatTimeDesc(101L)).willReturn(Optional.empty());
 
         // when
-        List<ServerSummaryResponse> response = serverService.getServerSummaryList(instanceId);
+        List<ServerSummaryResponse> response = serverService.getServerSummaryList(instanceId, userId);
 
         // then
         assertThat(response).hasSize(2);
@@ -129,21 +130,21 @@ class ServerServiceTest {
         assertThat(response.get(1).getName()).isEqualTo("payment-api");
         assertThat(response.get(1).getJvm().getHeapUsedMB()).isNull();
 
-        verify(instanceService).getInstanceById(instanceId);
+        verify(serverValidator).validateAndGetInstance(instanceId, userId);
         verify(serverRepository).findByInstanceId(instanceId);
     }
 
     @Test
-    @DisplayName("존재하지 않는 인스턴스의 서버 통계 요약 목록 조회 시 예외 발생")
+    @DisplayName("존재하지 않거나 권한 없는 인스턴스의 서버 통계 요약 목록 조회 시 예외 발생")
     void getServerSummaryList_instanceNotFound_throwsException() {
         // given
         Long instanceId = 999L;
 
-        given(instanceService.getInstanceById(instanceId))
+        given(serverValidator.validateAndGetInstance(instanceId, userId))
                 .willThrow(new CustomException(InstanceErrorCode.INSTANCE_NOT_FOUND));
 
         // when & then
-        assertThatThrownBy(() -> serverService.getServerSummaryList(instanceId))
+        assertThatThrownBy(() -> serverService.getServerSummaryList(instanceId, userId))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", InstanceErrorCode.INSTANCE_NOT_FOUND);
     }
@@ -166,11 +167,11 @@ class ServerServiceTest {
                 .build();
         ReflectionTestUtils.setField(mockSavedServer, "id", 100L);
 
-        given(instanceService.getInstanceById(instanceId)).willReturn(mockInstance);
+        given(serverValidator.validateAndGetInstance(instanceId, userId)).willReturn(mockInstance);
         given(serverRepository.save(any(Server.class))).willReturn(mockSavedServer);
 
         // when
-        ServerResponse response = serverService.createServer(request);
+        ServerResponse response = serverService.createServer(userId, request);
 
         // then
         assertThat(response).isNotNull();
@@ -180,23 +181,23 @@ class ServerServiceTest {
         assertThat(response.getPort()).isEqualTo(8080);
         assertThat(response.getStatus()).isEqualTo(ServerStatus.DISCONNECTED);
 
-        verify(instanceService).getInstanceById(instanceId);
+        verify(serverValidator).validateAndGetInstance(instanceId, userId);
         verify(serverRepository).save(any(Server.class));
         verify(serverThresholdRepository).saveAll(any());
     }
 
     @Test
-    @DisplayName("존재하지 않는 인스턴스에 서버 등록 시 예외 발생")
+    @DisplayName("존재하지 않거나 권한 없는 인스턴스에 서버 등록 시 예외 발생")
     void createServer_instanceNotFound_throwsException() {
         // given
         Long instanceId = 999L;
         ServerCreateRequest request = new ServerCreateRequest(instanceId, "User-Service", 8080);
 
-        given(instanceService.getInstanceById(instanceId))
+        given(serverValidator.validateAndGetInstance(instanceId, userId))
                 .willThrow(new CustomException(InstanceErrorCode.INSTANCE_NOT_FOUND));
 
         // when & then
-        assertThatThrownBy(() -> serverService.createServer(request))
+        assertThatThrownBy(() -> serverService.createServer(userId, request))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", InstanceErrorCode.INSTANCE_NOT_FOUND);
     }
@@ -220,10 +221,10 @@ class ServerServiceTest {
 
         ServerUpdateRequest updateRequest = new ServerUpdateRequest("User-Service-Core", 8081);
 
-        given(serverRepository.findById(serverId)).willReturn(Optional.of(existingServer));
+        given(serverValidator.validateAndGetServer(serverId, userId)).willReturn(existingServer);
 
         // when
-        ServerResponse response = serverService.updateServer(serverId, updateRequest);
+        ServerResponse response = serverService.updateServer(serverId, userId, updateRequest);
 
         // then
         assertThat(response).isNotNull();
@@ -231,20 +232,21 @@ class ServerServiceTest {
         assertThat(response.getName()).isEqualTo("User-Service-Core");
         assertThat(response.getPort()).isEqualTo(8081);
 
-        verify(serverRepository).findById(serverId);
+        verify(serverValidator).validateAndGetServer(serverId, userId);
     }
 
     @Test
-    @DisplayName("존재하지 않는 서버 정보 수정 시 예외 발생")
+    @DisplayName("존재하지 않거나 권한 없는 서버 정보 수정 시 예외 발생")
     void updateServer_serverNotFound_throwsException() {
         // given
         Long serverId = 999L;
         ServerUpdateRequest updateRequest = new ServerUpdateRequest("User-Service-Core", 8081);
 
-        given(serverRepository.findById(serverId)).willReturn(Optional.empty());
+        given(serverValidator.validateAndGetServer(serverId, userId))
+                .willThrow(new CustomException(ServerErrorCode.SERVER_NOT_FOUND));
 
         // when & then
-        assertThatThrownBy(() -> serverService.updateServer(serverId, updateRequest))
+        assertThatThrownBy(() -> serverService.updateServer(serverId, userId, updateRequest))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ServerErrorCode.SERVER_NOT_FOUND);
     }
@@ -256,29 +258,30 @@ class ServerServiceTest {
         Long serverId = 100L;
         Server mockServer = Mockito.mock(Server.class);
 
-        given(serverRepository.findById(serverId)).willReturn(Optional.of(mockServer));
+        given(serverValidator.validateAndGetServer(serverId, userId)).willReturn(mockServer);
 
         // when
-        ServerDeleteResponse response = serverService.deleteServer(serverId);
+        ServerDeleteResponse response = serverService.deleteServer(serverId, userId);
 
         // then
         assertThat(response).isNotNull();
         assertThat(response.getDeletedServerId()).isEqualTo(serverId);
 
-        verify(serverRepository).findById(serverId);
+        verify(serverValidator).validateAndGetServer(serverId, userId);
         verify(serverRepository).delete(mockServer);
     }
 
     @Test
-    @DisplayName("존재하지 않는 서버 삭제 시 예외 발생")
+    @DisplayName("존재하지 않거나 권한 없는 서버 삭제 시 예외 발생")
     void deleteServer_serverNotFound_throwsException() {
         // given
         Long serverId = 999L;
 
-        given(serverRepository.findById(serverId)).willReturn(Optional.empty());
+        given(serverValidator.validateAndGetServer(serverId, userId))
+                .willThrow(new CustomException(ServerErrorCode.SERVER_NOT_FOUND));
 
         // when & then
-        assertThatThrownBy(() -> serverService.deleteServer(serverId))
+        assertThatThrownBy(() -> serverService.deleteServer(serverId, userId))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ServerErrorCode.SERVER_NOT_FOUND);
     }

@@ -14,8 +14,8 @@ import com.moni.api.domain.server.entity.Server;
 import com.moni.api.domain.server.entity.ServerStatus;
 import com.moni.api.domain.server.exception.ServerErrorCode;
 import com.moni.api.domain.server.repository.ApiKeyRepository;
-import com.moni.api.domain.server.repository.ServerRepository;
 import com.moni.api.domain.server.util.ApiKeyGenerator;
+import com.moni.api.domain.server.validator.ServerValidator;
 import com.moni.api.global.error.exception.CustomException;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -34,10 +34,12 @@ class ServerApiKeyServiceTest {
     private ServerApiKeyService serverApiKeyService;
 
     @Mock
-    private ServerRepository serverRepository;
+    private ServerValidator serverValidator;
 
     @Mock
     private ApiKeyRepository apiKeyRepository;
+
+    private final Long userId = 1L;
 
     @Test
     @DisplayName("API Key 최초 발급 성공")
@@ -50,7 +52,7 @@ class ServerApiKeyServiceTest {
                 .status(ServerStatus.CONNECTED)
                 .build();
 
-        given(serverRepository.findById(serverId)).willReturn(Optional.of(server));
+        given(serverValidator.validateAndGetServer(serverId, userId)).willReturn(server);
         given(apiKeyRepository.findByServerIdAndRevokedAtIsNull(serverId)).willReturn(Optional.empty());
         given(apiKeyRepository.save(any(ApiKey.class))).willAnswer(invocation -> {
             ApiKey key = invocation.getArgument(0);
@@ -60,24 +62,26 @@ class ServerApiKeyServiceTest {
         });
 
         // when
-        ApiKeyCreateResponse response = serverApiKeyService.createApiKey(serverId);
+        ApiKeyCreateResponse response = serverApiKeyService.createApiKey(serverId, userId);
 
         // then
         assertThat(response).isNotNull();
         assertThat(response.getServerId()).isEqualTo(serverId);
         assertThat(response.getApiKey()).isNotBlank();
+        verify(serverValidator).validateAndGetServer(serverId, userId);
         verify(apiKeyRepository).save(any(ApiKey.class));
     }
 
     @Test
-    @DisplayName("API Key 최초 발급 실패 - 서버 없음")
+    @DisplayName("API Key 최초 발급 실패 - 서버 없음 또는 권한 없음")
     void createApiKey_serverNotFound() {
         // given
         Long serverId = 999L;
-        given(serverRepository.findById(serverId)).willReturn(Optional.empty());
+        given(serverValidator.validateAndGetServer(serverId, userId))
+                .willThrow(new CustomException(ServerErrorCode.SERVER_NOT_FOUND));
 
         // when & then
-        assertThatThrownBy(() -> serverApiKeyService.createApiKey(serverId))
+        assertThatThrownBy(() -> serverApiKeyService.createApiKey(serverId, userId))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ServerErrorCode.SERVER_NOT_FOUND);
     }
@@ -90,11 +94,11 @@ class ServerApiKeyServiceTest {
         Server server = Server.builder().name("User-Service").port(8080).build();
         ApiKey existingKey = ApiKey.builder().server(server).keyHash("hash").build();
 
-        given(serverRepository.findById(serverId)).willReturn(Optional.of(server));
+        given(serverValidator.validateAndGetServer(serverId, userId)).willReturn(server);
         given(apiKeyRepository.findByServerIdAndRevokedAtIsNull(serverId)).willReturn(Optional.of(existingKey));
 
         // when & then
-        assertThatThrownBy(() -> serverApiKeyService.createApiKey(serverId))
+        assertThatThrownBy(() -> serverApiKeyService.createApiKey(serverId, userId))
                 .isInstanceOf(CustomException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ServerErrorCode.API_KEY_ALREADY_EXISTS);
     }
@@ -107,7 +111,7 @@ class ServerApiKeyServiceTest {
         Server server = Server.builder().name("User-Service").port(8080).build();
         ApiKey oldKey = ApiKey.builder().server(server).keyHash("old_hash").build();
 
-        given(serverRepository.findById(serverId)).willReturn(Optional.of(server));
+        given(serverValidator.validateAndGetServer(serverId, userId)).willReturn(server);
         given(apiKeyRepository.findByServerIdAndRevokedAtIsNull(serverId)).willReturn(Optional.of(oldKey));
         given(apiKeyRepository.save(any(ApiKey.class))).willAnswer(invocation -> {
             ApiKey key = invocation.getArgument(0);
@@ -117,13 +121,14 @@ class ServerApiKeyServiceTest {
         });
 
         // when
-        ApiKeyRotateResponse response = serverApiKeyService.rotateApiKey(serverId);
+        ApiKeyRotateResponse response = serverApiKeyService.rotateApiKey(serverId, userId);
 
         // then
         assertThat(response).isNotNull();
         assertThat(response.getServerId()).isEqualTo(serverId);
         assertThat(response.getNewApiKey()).isNotBlank();
         assertThat(oldKey.getRevokedAt()).isNotNull();
+        verify(serverValidator).validateAndGetServer(serverId, userId);
         verify(apiKeyRepository).save(any(ApiKey.class));
     }
 
@@ -140,16 +145,17 @@ class ServerApiKeyServiceTest {
                 .build();
         ReflectionTestUtils.setField(activeKey, "createdAt", createdAt);
 
-        given(serverRepository.existsById(serverId)).willReturn(true);
+        given(serverValidator.validateAndGetServer(serverId, userId)).willReturn(server);
         given(apiKeyRepository.findFirstByServerIdOrderByCreatedAtDesc(serverId)).willReturn(Optional.of(activeKey));
 
         // when
-        ApiKeyStatusResponse response = serverApiKeyService.getApiKeyStatus(serverId);
+        ApiKeyStatusResponse response = serverApiKeyService.getApiKeyStatus(serverId, userId);
 
         // then
         assertThat(response.getHasApiKey()).isTrue();
         assertThat(response.getCreatedAt()).isEqualTo(createdAt);
         assertThat(response.getRevokedAt()).isNull();
+        verify(serverValidator).validateAndGetServer(serverId, userId);
     }
 
     @Test
@@ -157,16 +163,18 @@ class ServerApiKeyServiceTest {
     void getApiKeyStatus_noKey_success() {
         // given
         Long serverId = 1L;
-        given(serverRepository.existsById(serverId)).willReturn(true);
+        Server server = Server.builder().name("User-Service").port(8080).build();
+        given(serverValidator.validateAndGetServer(serverId, userId)).willReturn(server);
         given(apiKeyRepository.findFirstByServerIdOrderByCreatedAtDesc(serverId)).willReturn(Optional.empty());
 
         // when
-        ApiKeyStatusResponse response = serverApiKeyService.getApiKeyStatus(serverId);
+        ApiKeyStatusResponse response = serverApiKeyService.getApiKeyStatus(serverId, userId);
 
         // then
         assertThat(response.getHasApiKey()).isFalse();
         assertThat(response.getCreatedAt()).isNull();
         assertThat(response.getRevokedAt()).isNull();
+        verify(serverValidator).validateAndGetServer(serverId, userId);
     }
 
     @Test
