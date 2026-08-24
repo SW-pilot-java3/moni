@@ -277,36 +277,58 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 4. 계층형 인프라 테이블 */}
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              <th className="py-3 px-4">인스턴스 / 앱 이름</th>
-              <th className="py-3 px-4">호스트 IP / 포트</th>
-              <th className="py-3 px-4">상태</th>
-              <th className="py-3 px-4">최근 데이터 수집</th>
-              <th className="py-3 px-4 text-right">작업</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {loading && (
-              <tr>
-                <td colSpan={5} className="py-16 text-center text-sm text-slate-400">
-                  인프라 연동 현황을 불러오는 중...
-                </td>
+      {/* 4. 계층형 인프라 테이블 또는 온보딩 빈 카드 */}
+      {!loading && instances.length === 0 ? (
+        <Card className="p-12 text-center border-slate-200 shadow-2xs">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 mb-4 border border-brand-100 shadow-xs">
+            <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-bold text-slate-900">아직 등록된 인스턴스가 없습니다</h3>
+          <p className="mt-1.5 text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+            모니터링할 EC2 호스트 인스턴스를 먼저 등록하고, Node Exporter 및 Spring Boot 애플리케이션을 연동하여 실시간 모니터링을 시작해 보세요.
+          </p>
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <Link
+              to="/instances/new"
+              className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-xs font-bold text-white hover:bg-brand-600 shadow-sm transition-all"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              <span>첫 번째 인스턴스 등록하기</span>
+            </Link>
+          </div>
+        </Card>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <th className="py-3 px-4">인스턴스 / 앱 이름</th>
+                <th className="py-3 px-4">호스트 IP / 포트</th>
+                <th className="py-3 px-4">상태</th>
+                <th className="py-3 px-4">최근 데이터 수집</th>
+                <th className="py-3 px-4 text-right">작업</th>
               </tr>
-            )}
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading && (
+                <tr>
+                  <td colSpan={5} className="py-16 text-center text-sm text-slate-400">
+                    인프라 연동 현황을 불러오는 중...
+                  </td>
+                </tr>
+              )}
 
-            {!loading && filteredInstances.length === 0 && (
-              <tr>
-                <td colSpan={5} className="py-16 text-center text-sm text-slate-400">
-                  {searchQuery || statusFilter !== 'ALL'
-                    ? '조건에 일치하는 인스턴스 또는 애플리케이션이 없습니다.'
-                    : '등록된 인스턴스가 없습니다. 상단에서 첫 번째 인스턴스를 등록해 보세요.'}
-                </td>
-              </tr>
-            )}
+              {!loading && filteredInstances.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-16 text-center text-sm text-slate-400">
+                    검색 조건에 일치하는 인스턴스 또는 애플리케이션이 없습니다.
+                  </td>
+                </tr>
+              )}
 
             {!loading &&
               filteredInstances.map((inst) => {
@@ -501,6 +523,7 @@ export default function DashboardPage() {
           </tbody>
         </table>
       </div>
+      )}
 
       <p className="text-xs text-slate-400">
         * 인스턴스 또는 애플리케이션 이름을 클릭하면 해당 실시간 모니터링 화면으로 바로 이동합니다.
