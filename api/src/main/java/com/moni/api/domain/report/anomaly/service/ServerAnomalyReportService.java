@@ -12,8 +12,10 @@ import com.moni.api.domain.server.exception.ServerErrorCode;
 import com.moni.api.domain.server.repository.ServerRepository;
 import com.moni.api.domain.server.repository.ServerThresholdRepository;
 import com.moni.api.global.error.exception.CustomException;
+import com.moni.api.global.threshold.CooldownPolicy;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -49,6 +51,16 @@ public class ServerAnomalyReportService {
 
     @Transactional
     public void generateReport(ServerMetricThresholdExceededEvent event) {
+        Optional<ServerAnomalyReport> lastReport = serverAnomalyReportRepository
+                .findFirstByServerIdAndMetricKeyOrderByCollectedAtDesc(event.serverId(), event.metricKey());
+        if (lastReport.isPresent() && CooldownPolicy.shouldSuppress(
+                lastReport.get().getSeverity(), lastReport.get().getCollectedAt(),
+                event.severity(), event.collectedAt())) {
+            log.info("쿨다운 중 - 이상탐지 리포트 생성 스킵 - serverId={}, metricKey={}",
+                    event.serverId(), event.metricKey());
+            return;
+        }
+
         Server server = serverRepository.findById(event.serverId())
                 .orElseThrow(() -> new CustomException(ServerErrorCode.SERVER_NOT_FOUND));
         ServerThreshold threshold = serverThresholdRepository

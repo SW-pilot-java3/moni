@@ -12,8 +12,10 @@ import com.moni.api.domain.report.anomaly.repository.InstanceAnomalyReportReposi
 import com.moni.api.domain.report.client.ClaudeReportClient;
 import com.moni.api.domain.report.exception.ReportErrorCode;
 import com.moni.api.global.error.exception.CustomException;
+import com.moni.api.global.threshold.CooldownPolicy;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -49,6 +51,16 @@ public class InstanceAnomalyReportService {
 
     @Transactional
     public void generateReport(InstanceMetricThresholdExceededEvent event) {
+        Optional<InstanceAnomalyReport> lastReport = instanceAnomalyReportRepository
+                .findFirstByInstanceIdAndMetricKeyOrderByCollectedAtDesc(event.instanceId(), event.metricKey());
+        if (lastReport.isPresent() && CooldownPolicy.shouldSuppress(
+                lastReport.get().getSeverity(), lastReport.get().getCollectedAt(),
+                event.severity(), event.collectedAt())) {
+            log.info("쿨다운 중 - 이상탐지 리포트 생성 스킵 - instanceId={}, metricKey={}",
+                    event.instanceId(), event.metricKey());
+            return;
+        }
+
         Instance instance = instanceRepository.findById(event.instanceId())
                 .orElseThrow(() -> new CustomException(InstanceErrorCode.INSTANCE_NOT_FOUND));
         InstanceThreshold threshold = instanceThresholdRepository
