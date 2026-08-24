@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import Card from '../components/ui/Card'
 import NodeExporterSetupCard from '../components/instance/NodeExporterSetupCard'
 import { ApiError } from '../lib/api'
@@ -12,7 +12,6 @@ const steps = [
 ]
 
 export default function InstanceRegisterPage() {
-  const navigate = useNavigate()
   const [name, setName] = useState('')
   const [ip, setIp] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -42,21 +41,12 @@ export default function InstanceRegisterPage() {
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6">
-      {/* 상단 헤더 & 진행 단계 스텝 바 */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">인스턴스 등록</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            모니터링할 EC2 호스트 인스턴스를 등록하고 CPU · 메모리 · 디스크 수집 환경을 구성합니다.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => navigate('/manage')}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
-        >
-          관리 목록으로 ›
-        </button>
+      {/* 상단 헤더 */}
+      <div className="border-b border-slate-200 pb-4">
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">인스턴스 등록</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          모니터링할 EC2 호스트 인스턴스를 등록하고 CPU · 메모리 · 디스크 수집 환경을 구성합니다.
+        </p>
       </div>
 
       {/* 3단계 프로세스 바 */}

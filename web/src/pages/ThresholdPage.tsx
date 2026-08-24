@@ -52,6 +52,11 @@ export default function ThresholdPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [tab, setTab] = useState<'instance' | 'app'>(scope === 'app' ? 'app' : 'instance')
 
+  useEffect(() => {
+    if (scope === 'app') setTab('app')
+    else if (scope === 'instance') setTab('instance')
+  }, [scope])
+
   const instanceIdParam = searchParams.get('instance')
   const serverIdParam = searchParams.get('server')
 
@@ -191,16 +196,20 @@ export default function ThresholdPage() {
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6">
-      {/* 상단 헤더 & 셀렉터/탭 바 */}
+      {/* 상단 헤더 & 셀렉터 바 */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">임계치 설정</h1>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            {tab === 'instance' ? '인스턴스 임계치 설정' : '앱 임계치 설정 (Spring Boot)'}
+          </h1>
           <p className="mt-1 text-sm text-slate-500">
-            호스트 및 애플리케이션 메트릭의 경고(Warning) · 심각(Critical) 기준값을 정의합니다.
+            {tab === 'instance'
+              ? '호스트 인스턴스 메트릭(CPU, 메모리, 디스크, 네트워크)의 경고 및 심각 기준값을 정의합니다.'
+              : 'Spring Boot 애플리케이션 메트릭(JVM, HTTP, HikariCP, ThreadPool)의 경고 및 심각 기준값을 정의합니다.'}
           </p>
         </div>
 
-        {/* 인스턴스/앱 전환 셀렉터 */}
+        {/* 인스턴스/앱 선택 셀렉터 */}
         <div className="flex flex-wrap items-center gap-2">
           {/* 인스턴스 선택 */}
           <select
@@ -238,32 +247,6 @@ export default function ThresholdPage() {
               ))}
             </select>
           )}
-
-          {/* 알약형 탭 버튼 */}
-          <div className="flex rounded-lg border border-slate-200 bg-slate-100 p-1">
-            <button
-              type="button"
-              onClick={() => setTab('instance')}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                tab === 'instance'
-                  ? 'bg-white text-slate-900 shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              인스턴스 (호스트)
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('app')}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                tab === 'app'
-                  ? 'bg-white text-slate-900 shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              앱 (Spring Boot)
-            </button>
-          </div>
         </div>
       </div>
 

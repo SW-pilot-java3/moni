@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import Card from '../components/ui/Card'
 import StatusDot from '../components/ui/StatusDot'
 import { ApiError } from '../lib/api'
@@ -17,8 +17,11 @@ function formatDate(value: string | null) {
 }
 
 export default function AppLinkPage() {
+  const [searchParams] = useSearchParams()
+  const instanceParam = searchParams.get('instance')
+
   const [instances, setInstances] = useState<InstanceListItem[]>([])
-  const [instanceId, setInstanceId] = useState<number | null>(null)
+  const [instanceId, setInstanceId] = useState<number | null>(instanceParam ? Number(instanceParam) : null)
   const [servers, setServers] = useState<ServerItem[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -33,10 +36,12 @@ export default function AppLinkPage() {
     getInstances()
       .then((res) => {
         setInstances(res)
-        if (res.length > 0) setInstanceId(res[0].instanceId)
+        if (res.length > 0 && !instanceParam) {
+          setInstanceId(res[0].instanceId)
+        }
       })
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : '인스턴스 목록을 불러오지 못했습니다.'))
-  }, [])
+  }, [instanceParam])
 
   useEffect(() => {
     if (instanceId === null) return
@@ -114,8 +119,8 @@ moni.server-url=https://<moni-api-domain>`
           </p>
         </div>
 
-        {/* 인스턴스 전환 셀렉터 */}
-        <div className="flex items-center gap-3">
+        {/* 인스턴스 선택 드롭다운 */}
+        <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-slate-500">대상 인스턴스:</span>
           <select
             value={instanceId ?? ''}
@@ -351,14 +356,7 @@ moni.server-url=https://<moni-api-domain>`
                           label={app.status === 'CONNECTED' ? '연결됨' : '설정 대기 중'}
                         />
                       </td>
-                      <td className="py-3 px-3 text-right space-x-2">
-                        <Link
-                          to={`/thresholds/app?instance=${instanceId}&server=${app.serverId}`}
-                          className="inline-block text-xs font-medium text-brand-600 hover:text-brand-800"
-                        >
-                          임계치
-                        </Link>
-                        <span className="text-slate-300">|</span>
+                      <td className="py-3 px-3 text-right">
                         <button
                           type="button"
                           onClick={() => handleDelete(app.serverId)}

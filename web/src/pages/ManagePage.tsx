@@ -110,13 +110,13 @@ export default function ManagePage() {
       {/* 상단 헤더 & 인스턴스 셀렉터 바 */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">인스턴스 · 앱 관리</h1>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">상세 관리</h1>
           <p className="mt-1 text-sm text-slate-500">
             호스트 인스턴스 정보와 소속된 애플리케이션(서버) 및 API Key를 통합 관리합니다.
           </p>
         </div>
 
-        {/* 인스턴스 전환 셀렉터 & 신규 생성 링크 */}
+        {/* 인스턴스 전환 셀렉터 */}
         <div className="flex items-center gap-2">
           <select
             value={instance.instanceId}
@@ -129,12 +129,6 @@ export default function ManagePage() {
               </option>
             ))}
           </select>
-          <Link
-            to="/instances/new"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
-          >
-            + 인스턴스 등록
-          </Link>
         </div>
       </div>
 
@@ -188,12 +182,6 @@ export default function ManagePage() {
               >
                 실시간 모니터링 바로가기 ›
               </Link>
-              <Link
-                to={`/thresholds/instance?instance=${instance.instanceId}`}
-                className="w-full text-center rounded-md border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-              >
-                호스트 임계치 설정 ›
-              </Link>
             </div>
           </Card>
 
@@ -226,7 +214,7 @@ export default function ManagePage() {
                 </p>
               </div>
               <Link
-                to="/apps/link"
+                to={`/apps/link?instance=${instance.instanceId}`}
                 className="inline-flex items-center justify-center rounded-md bg-brand-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-600 shadow-sm transition-colors"
               >
                 + 새 앱 연동하기
@@ -269,13 +257,6 @@ export default function ManagePage() {
                         </td>
                         <td className="py-3 px-3 text-xs text-slate-500">{formatDate(app.lastReceivedAt)}</td>
                         <td className="py-3 px-3 text-right space-x-2">
-                          <Link
-                            to={`/thresholds/app?instance=${instance.instanceId}&server=${app.serverId}`}
-                            className="inline-block text-xs font-medium text-brand-600 hover:text-brand-800"
-                          >
-                            임계치
-                          </Link>
-                          <span className="text-slate-300">|</span>
                           <button
                             type="button"
                             onClick={() => handleIssueKey(app.serverId)}

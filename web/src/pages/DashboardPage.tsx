@@ -48,12 +48,17 @@ export default function DashboardPage() {
   }
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">인스턴스 · 앱 목록</h1>
+    <div className="w-full max-w-7xl mx-auto space-y-6">
+      <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">연동 현황</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            등록된 모든 인스턴스와 애플리케이션의 계층 구조 및 실시간 가동 상태를 조회합니다.
+          </p>
+        </div>
         <Link
           to="/instances/new"
-          className="rounded-md bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600"
+          className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600 shadow-sm transition-colors"
         >
           + 인스턴스 등록
         </Link>
@@ -161,7 +166,10 @@ export default function DashboardPage() {
                           <td className="px-4 py-3 text-slate-400">—</td>
                           <td className="px-4 py-3 text-slate-500">{formatDate(app.lastReceivedAt)}</td>
                           <td className="px-4 py-3 text-right">
-                            <Link to="/monitoring" className="text-brand-600 hover:underline">
+                            <Link
+                              to={`/monitoring?instance=${inst.instanceId}&app=${app.serverId}`}
+                              className="text-brand-600 hover:underline"
+                            >
                               {app.status === 'DISCONNECTED' ? '가이드 ›' : '상세 ›'}
                             </Link>
                           </td>
