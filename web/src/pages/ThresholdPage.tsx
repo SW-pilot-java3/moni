@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useDialog } from '../lib/dialog'
 import Card from '../components/ui/Card'
+import CustomSelect from '../components/ui/CustomSelect'
 import { ApiError } from '../lib/api'
 import {
   getInstanceThresholds,
@@ -301,43 +302,41 @@ export default function ThresholdPage() {
         {/* 우측: 대상 인스턴스 및 앱 선택 드롭다운 */}
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="flex items-center gap-1.5 text-xs">
-            <span className="font-semibold text-slate-500">대상 인스턴스:</span>
-            <select
+            <span className="font-semibold text-slate-500 shrink-0">대상 인스턴스:</span>
+            <CustomSelect
+              className="w-52"
               value={instance.instanceId}
-              onChange={(e) => {
+              onChange={(val) => {
                 const newParams = new URLSearchParams(searchParams)
-                newParams.set('instance', e.target.value)
+                newParams.set('instance', String(val))
                 newParams.delete('server')
                 setSearchParams(newParams)
               }}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-            >
-              {instances.map((i) => (
-                <option key={i.instanceId} value={i.instanceId}>
-                  {i.name} ({i.ip})
-                </option>
-              ))}
-            </select>
+              options={instances.map((i) => ({
+                value: i.instanceId,
+                label: i.name,
+                subLabel: i.ip,
+              }))}
+            />
           </div>
 
           {tab === 'app' && servers.length > 0 && (
             <div className="flex items-center gap-1.5 text-xs">
-              <span className="font-semibold text-slate-500">소속 앱:</span>
-              <select
-                value={server?.serverId ?? ''}
-                onChange={(e) => {
+              <span className="font-semibold text-slate-500 shrink-0">소속 앱:</span>
+              <CustomSelect
+                className="w-48"
+                value={server?.serverId ?? servers[0]?.serverId ?? 0}
+                onChange={(val) => {
                   const newParams = new URLSearchParams(searchParams)
-                  newParams.set('server', e.target.value)
+                  newParams.set('server', String(val))
                   setSearchParams(newParams)
                 }}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-              >
-                {servers.map((s) => (
-                  <option key={s.serverId} value={s.serverId}>
-                    {s.name} (포트: {s.port ?? '—'})
-                  </option>
-                ))}
-              </select>
+                options={servers.map((s) => ({
+                  value: s.serverId,
+                  label: s.name,
+                  subLabel: `포트: ${s.port ?? '—'}`,
+                }))}
+              />
             </div>
           )}
         </div>

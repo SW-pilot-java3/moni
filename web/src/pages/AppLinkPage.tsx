@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import Card from '../components/ui/Card'
+import CustomSelect from '../components/ui/CustomSelect'
 import { ApiError } from '../lib/api'
 import { getInstances, type InstanceListItem } from '../lib/instances'
 import { createApiKey, createServer } from '../lib/servers'
@@ -234,17 +235,16 @@ moni.server-url=https://<moni-api-domain>`
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   대상 호스트 인스턴스
                 </label>
-                <select
-                  value={instanceId ?? ''}
-                  onChange={(e) => setInstanceId(Number(e.target.value))}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-2xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                >
-                  {instances.map((inst) => (
-                    <option key={inst.instanceId} value={inst.instanceId}>
-                      {inst.name} ({inst.ip})
-                    </option>
-                  ))}
-                </select>
+                <CustomSelect
+                  value={instanceId ?? (instances[0]?.instanceId ?? 0)}
+                  onChange={(val) => setInstanceId(Number(val))}
+                  options={instances.map((inst) => ({
+                    value: inst.instanceId,
+                    label: inst.name,
+                    subLabel: inst.ip,
+                  }))}
+                  placeholder="인스턴스를 선택하세요"
+                />
                 <span className="mt-1 block text-[11px] text-slate-400">
                   애플리케이션이 배포되어 실행 중인 서버 인스턴스를 선택하세요.
                 </span>
