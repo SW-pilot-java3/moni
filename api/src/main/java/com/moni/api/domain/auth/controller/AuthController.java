@@ -6,6 +6,7 @@ import com.moni.api.domain.auth.dto.SignupRequest;
 import com.moni.api.domain.auth.service.AuthService;
 import com.moni.api.domain.user.dto.UserDetailResponse;
 import com.moni.api.global.response.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "인증")
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor

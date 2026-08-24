@@ -71,6 +71,12 @@ export interface InstanceRealtimeMetricPoint {
   collectedAt: string
   cpuUsagePct: number | null
   memAvailableBytes: number | null
+  diskReadBytesPerSec: number | null
+  diskWriteBytesPerSec: number | null
+  diskUtilizationPct: number | null
+  netRxBytesPerSec: number | null
+  netTxBytesPerSec: number | null
+  netErrorsPerSec: number | null
 }
 
 export function getInstanceRealtimeMetrics(instanceId: number) {
@@ -82,6 +88,12 @@ export interface InstanceSseStreamEvent {
   collectedAt: string
   cpuUsagePct: number | null
   memAvailableBytes: number | null
+  diskReadBytesPerSec: number | null
+  diskWriteBytesPerSec: number | null
+  diskUtilizationPct: number | null
+  netRxBytesPerSec: number | null
+  netTxBytesPerSec: number | null
+  netErrorsPerSec: number | null
 }
 
 export function subscribeInstanceMetricStream(

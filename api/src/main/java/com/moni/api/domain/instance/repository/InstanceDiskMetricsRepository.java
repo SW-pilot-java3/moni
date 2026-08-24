@@ -16,4 +16,8 @@ public interface InstanceDiskMetricsRepository extends JpaRepository<InstanceDis
             "ORDER BY d.collectedAt ASC")
     List<InstanceDiskMetric> findAllByInstanceIdAndCollectedAtBetween(
             @Param("instanceId") Long instanceId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    List<InstanceDiskMetric> findAllByRealtimeMetricId(Long realtimeMetricId);
+
+    List<InstanceDiskMetric> findAllByRealtimeMetricIdIn(List<Long> realtimeMetricIds);
 }
