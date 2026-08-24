@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import MiniAreaCard from './MiniAreaCard'
 import StatusDot, { STREAM_STATUS_CONFIG, type StreamStatus } from '../ui/StatusDot'
+import DatePicker from '../ui/DatePicker'
 import { getTone, DEFAULT_THRESHOLDS } from '../../lib/thresholdUtils'
 import {
   getInstanceHistoryMetrics,
@@ -227,13 +228,11 @@ export default function InstanceDetailView({
               최근 15분
             </span>
           ) : (
-            /* 과거 지표 모드일 때: 날짜 선택 캘린더 */
-            <input
-              type="date"
+            /* 과거 지표 모드일 때: 커스텀 캘린더 */
+            <DatePicker
               value={historyDate}
-              max={formatDate(new Date())}
-              onChange={(e) => setHistoryDate(e.target.value)}
-              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-2xs focus:border-brand-500 focus:outline-none"
+              maxDate={formatDate(new Date())}
+              onChange={setHistoryDate}
             />
           )}
 
