@@ -16,4 +16,8 @@ public interface InstanceNetworkMetricsRepository extends JpaRepository<Instance
             "ORDER BY n.collectedAt ASC")
     List<InstanceNetworkMetric> findAllByInstanceIdAndCollectedAtBetween(
             @Param("instanceId") Long instanceId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    List<InstanceNetworkMetric> findAllByRealtimeMetricId(Long realtimeMetricId);
+
+    List<InstanceNetworkMetric> findAllByRealtimeMetricIdIn(List<Long> realtimeMetricIds);
 }

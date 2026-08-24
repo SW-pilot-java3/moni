@@ -23,6 +23,9 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
@@ -59,11 +62,11 @@ public class InstanceRealtimeMetricService {
                 .swapFreeBytes(payload.swapFreeBytes())
                 .build();
 
-        CpuMetrics previousCpuMetrics = instanceRealtimeMetricRepository
+        InstanceRealtimeMetric previousMetric = instanceRealtimeMetricRepository
                 .findFirstByInstanceIdOrderByCollectedAtDesc(instanceId)
-                .map(InstanceRealtimeMetric::getCpuMetrics)
                 .orElse(null);
-        Double cpuUsagePct = CpuUsageCalculator.calculate(previousCpuMetrics, cpuMetrics);
+        Double cpuUsagePct = CpuUsageCalculator.calculate(
+                previousMetric != null ? previousMetric.getCpuMetrics() : null, cpuMetrics);
 
         InstanceRealtimeMetric metric = InstanceRealtimeMetric.builder()
                 .instance(instance)
@@ -86,6 +89,7 @@ public class InstanceRealtimeMetricService {
             instanceCpuMetricRepository.save(cpuMetric);
         }
 
+        List<InstanceDiskMetric> currentDiskMetrics = new ArrayList<>();
         for (InstanceRealtimeMetricCreateRequest.DiskDevice diskDevice : payload.disks()) {
             InstanceDiskMetric diskMetric = InstanceDiskMetric.builder()
                     .realtimeMetric(metric)
@@ -97,7 +101,7 @@ public class InstanceRealtimeMetricService {
                     .writtenBytesTotal(diskDevice.writtenBytesTotal())
                     .ioTimeSecondsTotal(diskDevice.ioTimeSecondsTotal())
                     .build();
-            instanceDiskMetricsRepository.save(diskMetric);
+            currentDiskMetrics.add(instanceDiskMetricsRepository.save(diskMetric));
         }
 
         for (InstanceRealtimeMetricCreateRequest.FileSystemMount fileSystemMount : payload.filesystems()) {
@@ -111,6 +115,7 @@ public class InstanceRealtimeMetricService {
             instanceFileSystemMetricRepository.save(fileSystemMetric);
         }
 
+        List<InstanceNetworkMetric> currentNetworkMetrics = new ArrayList<>();
         for (InstanceRealtimeMetricCreateRequest.NetworkInterfaceMetric networkInterface : payload.networks()) {
             InstanceNetworkMetric networkMetric = InstanceNetworkMetric.builder()
                     .realtimeMetric(metric)
@@ -121,10 +126,25 @@ public class InstanceRealtimeMetricService {
                     .rxErrorsTotal(networkInterface.rxErrorsTotal())
                     .txErrorsTotal(networkInterface.txErrorsTotal())
                     .build();
-            instanceNetworkMetricsRepository.save(networkMetric);
+            currentNetworkMetrics.add(instanceNetworkMetricsRepository.save(networkMetric));
+        }
+
+        DiskUsageCalculator.Result diskUsage = DiskUsageCalculator.Result.EMPTY;
+        NetworkUsageCalculator.Result networkUsage = NetworkUsageCalculator.Result.EMPTY;
+        if (previousMetric != null) {
+            List<InstanceDiskMetric> previousDiskMetrics = instanceDiskMetricsRepository
+                    .findAllByRealtimeMetricId(previousMetric.getId());
+            List<InstanceNetworkMetric> previousNetworkMetrics = instanceNetworkMetricsRepository
+                    .findAllByRealtimeMetricId(previousMetric.getId());
+            diskUsage = DiskUsageCalculator.calculate(
+                    previousDiskMetrics, currentDiskMetrics, previousMetric.getCollectedAt(), request.collectedAt());
+            networkUsage = NetworkUsageCalculator.calculate(
+                    previousNetworkMetrics, currentNetworkMetrics, previousMetric.getCollectedAt(), request.collectedAt());
         }
 
         eventPublisher.publishEvent(new InstanceMetricStreamEvent(
-                instanceId, request.collectedAt(), cpuUsagePct, memoryMetrics.getMemAvailableBytes()));
+                instanceId, request.collectedAt(), cpuUsagePct, memoryMetrics.getMemAvailableBytes(),
+                diskUsage.readBytesPerSec(), diskUsage.writeBytesPerSec(), diskUsage.utilizationPct(),
+                networkUsage.rxBytesPerSec(), networkUsage.txBytesPerSec(), networkUsage.errorsPerSec()));
     }
 }
