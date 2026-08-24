@@ -102,12 +102,13 @@ export default function InstanceDetailView({
   }))
 
   return (
-    <div>
-      <div className="mb-3 flex items-start justify-between">
+    <div className="w-full flex-1 flex flex-col min-h-0">
+      {/* 헤더 */}
+      <div className="mb-4 flex items-start justify-between shrink-0">
         <h1 className="flex items-baseline gap-3 text-xl font-bold text-slate-900">
           {instance.name}
           <span className="text-sm font-normal text-slate-400">
-            {instance.ip} · 앱 {instance.serverCount}개
+            {instance.ip}
           </span>
         </h1>
         <StatusDot
@@ -116,87 +117,103 @@ export default function InstanceDetailView({
         />
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-4">
-        <MiniAreaCard
-          title="CPU"
-          stats={[
-            {
-              label: '사용률',
-              value: latest?.cpuUsagePct !== null && latest ? `${latest.cpuUsagePct?.toFixed(1)}%` : '—',
-              tone: getTone(latest?.cpuUsagePct, DEFAULT_THRESHOLDS.CPU_USAGE.warn, DEFAULT_THRESHOLDS.CPU_USAGE.crit),
-            },
-          ]}
-          data={cpuTimeline}
-          dataKey="cpuPct"
-          color="#5b7fa6"
-        />
-        <MiniAreaCard
-          title="가용 메모리"
-          stats={[{ label: '가용', value: latest ? formatBytes(latest.memAvailableBytes) : '—' }]}
-          data={memTimeline}
-          dataKey="memAvailGb"
-          color="#4a8c6f"
-        />
-        <MiniAreaCard
-          title="디스크 I/O"
-          stats={[
-            { label: '읽기', value: latest ? formatBytesPerSec(latest.diskReadBytesPerSec) : '—' },
-            { label: '쓰기', value: latest ? formatBytesPerSec(latest.diskWriteBytesPerSec) : '—' },
-            {
-              label: 'Utilization',
-              value: latest?.diskUtilizationPct !== null && latest ? `${latest.diskUtilizationPct?.toFixed(1)}%` : '—',
-              tone: 'warn',
-            },
-          ]}
-          data={diskTimeline}
-          dataKey="utilPct"
-          color="#c8922f"
-        />
-        <MiniAreaCard
-          title="네트워크"
-          stats={[
-            { label: 'RX', value: latest ? formatBytesPerSec(latest.netRxBytesPerSec) : '—' },
-            { label: 'TX', value: latest ? formatBytesPerSec(latest.netTxBytesPerSec) : '—' },
-            {
-              label: '에러율',
-              value: latest?.netErrorsPerSec !== null && latest ? `${latest.netErrorsPerSec?.toFixed(2)}/s` : '—',
-              tone: 'danger',
-            },
-          ]}
-          data={netTimeline}
-          dataKey="rxMBps"
-          color="#9b8ac1"
-        />
-      </div>
+      {/* 메인 2열 레이아웃: 좌측 앱 목록 + 우측 차트 2x2 */}
+      <div className="flex-1 flex gap-4 min-h-0">
+        {/* 좌측: 실행 중인 앱 목록 */}
+        <div className="w-52 shrink-0 flex flex-col gap-3">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+            실행 중인 앱 <span className="text-slate-400 font-normal">· {apps.length}개</span>
+          </div>
+          {apps.length === 0 ? (
+            <p className="rounded-lg border border-slate-200 bg-white p-4 text-xs text-slate-400 text-center">
+              등록된 앱이 없습니다.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2 overflow-y-auto">
+              {apps.map((app) => (
+                <button
+                  key={app.serverId}
+                  type="button"
+                  onClick={() => onSelectApp(app.serverId)}
+                  className="rounded-lg border border-slate-200 bg-white p-3 text-left hover:border-brand-300 hover:shadow-sm transition-all"
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-slate-900 truncate">{app.name}</span>
+                    <StatusDot
+                      tone={app.status === 'CONNECTED' ? 'normal' : 'idle'}
+                      label={app.status === 'CONNECTED' ? '연결됨' : '대기'}
+                    />
+                  </div>
+                  <div className="text-[11px] text-slate-400">포트 {app.port ?? '—'}</div>
+                  <div className="mt-2 text-[11px] font-medium text-brand-600 flex items-center gap-1">
+                    <span>상세 모니터링</span>
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
 
-      <div className="mb-3 text-sm font-semibold text-slate-800">
-        이 인스턴스에서 실행 중인 앱
-      </div>
-      {apps.length === 0 ? (
-        <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-400">등록된 앱이 없습니다.</p>
-      ) : (
-        <div className="grid grid-cols-3 gap-4">
-          {apps.map((app) => (
-            <button
-              key={app.serverId}
-              type="button"
-              onClick={() => onSelectApp(app.serverId)}
-              className="rounded-lg border border-slate-200 bg-white p-4 text-left hover:border-brand-300 hover:shadow-sm"
-            >
-              <div className="mb-2 flex items-center justify-between">
-                <span className="font-semibold text-slate-900">{app.name}</span>
-                <StatusDot tone={app.status === 'CONNECTED' ? 'normal' : 'idle'} label={app.status === 'CONNECTED' ? '연결됨' : '대기'} />
-              </div>
-              <div className="text-xs text-slate-500">포트 {app.port ?? '—'}</div>
-            </button>
-          ))}
+          <p className="mt-auto text-[10px] leading-relaxed text-slate-400">
+            앱 카드를 선택하면 JVM · HTTP · HikariCP · ThreadPool 상세 지표가 열립니다.
+          </p>
         </div>
-      )}
 
-      <p className="mt-6 text-xs leading-relaxed text-slate-400">
-        인스턴스는 호스트 지표(CPU · 메모리 · 디스크 · 네트워크)만, 앱은 애플리케이션 지표(JVM · HikariCP · HTTP · API)만
-        가집니다. 앱을 선택하면 JVM · HikariCP · HTTP · API 지표가 열립니다.
-      </p>
+        {/* 우측: 차트 2x2 (서버 모니터링과 동일하게 세로 꽉차게) */}
+        <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-4 min-h-0">
+          <MiniAreaCard
+            title="CPU"
+            stats={[
+              {
+                label: '사용률',
+                value: latest?.cpuUsagePct !== null && latest ? `${latest.cpuUsagePct?.toFixed(1)}%` : '—',
+                tone: getTone(latest?.cpuUsagePct, DEFAULT_THRESHOLDS.CPU_USAGE.warn, DEFAULT_THRESHOLDS.CPU_USAGE.crit),
+              },
+            ]}
+            data={cpuTimeline}
+            dataKey="cpuPct"
+            color="#5b7fa6"
+          />
+          <MiniAreaCard
+            title="가용 메모리"
+            stats={[{ label: '가용', value: latest ? formatBytes(latest.memAvailableBytes) : '—' }]}
+            data={memTimeline}
+            dataKey="memAvailGb"
+            color="#4a8c6f"
+          />
+          <MiniAreaCard
+            title="디스크 I/O"
+            stats={[
+              { label: '읽기', value: latest ? formatBytesPerSec(latest.diskReadBytesPerSec) : '—' },
+              { label: '쓰기', value: latest ? formatBytesPerSec(latest.diskWriteBytesPerSec) : '—' },
+              {
+                label: 'Utilization',
+                value: latest?.diskUtilizationPct !== null && latest ? `${latest.diskUtilizationPct?.toFixed(1)}%` : '—',
+                tone: getTone(latest?.diskUtilizationPct, DEFAULT_THRESHOLDS.DISK_USAGE.warn, DEFAULT_THRESHOLDS.DISK_USAGE.crit),
+              },
+            ]}
+            data={diskTimeline}
+            dataKey="utilPct"
+            color="#c8922f"
+          />
+          <MiniAreaCard
+            title="네트워크"
+            stats={[
+              { label: 'RX', value: latest ? formatBytesPerSec(latest.netRxBytesPerSec) : '—' },
+              { label: 'TX', value: latest ? formatBytesPerSec(latest.netTxBytesPerSec) : '—' },
+              {
+                label: '에러율',
+                value: latest?.netErrorsPerSec !== null && latest ? `${latest.netErrorsPerSec?.toFixed(2)}/s` : '—',
+              },
+            ]}
+            data={netTimeline}
+            dataKey="rxMBps"
+            color="#9b8ac1"
+          />
+        </div>
+      </div>
     </div>
   )
-}
+}
