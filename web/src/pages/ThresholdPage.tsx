@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Card from '../components/ui/Card'
 import { ApiError } from '../lib/api'
 import {
@@ -27,6 +27,14 @@ const instanceMetricMeta: Record<InstanceMetricKey, { label: string; unit: strin
   NET_ERROR_RATE: { label: '네트워크 오류율', unit: '%', desc: '네트워크 인터페이스 패킷 에러율' },
 }
 
+const instanceDefaults: Record<InstanceMetricKey, { warning: number; critical: number }> = {
+  CPU_USAGE: { warning: 80.0, critical: 95.0 },
+  MEM_USAGE: { warning: 80.0, critical: 95.0 },
+  DISK_USAGE: { warning: 80.0, critical: 95.0 },
+  DISK_LATENCY: { warning: 100.0, critical: 500.0 },
+  NET_ERROR_RATE: { warning: 1.0, critical: 5.0 },
+}
+
 const serverMetricMeta: Record<ServerMetricKey, { label: string; unit: string; desc: string }> = {
   JVM_HEAP_USAGE: { label: 'JVM Heap 사용률', unit: '%', desc: '전체 힙 메모리 중 실사용량 비율' },
   JVM_OLD_GEN_USAGE: { label: 'JVM Old Gen 사용률', unit: '%', desc: 'Old Generation 메모리 적체율' },
@@ -37,6 +45,16 @@ const serverMetricMeta: Record<ServerMetricKey, { label: string; unit: string; d
   THREADPOOL_QUEUE_USAGE: { label: '스레드풀 큐 적체율', unit: '%', desc: 'Executor 작업 대기 큐 점유율' },
 }
 
+const serverDefaults: Record<ServerMetricKey, { warning: number; critical: number }> = {
+  JVM_HEAP_USAGE: { warning: 80.0, critical: 90.0 },
+  JVM_OLD_GEN_USAGE: { warning: 75.0, critical: 85.0 },
+  GC_PAUSE_TIME: { warning: 0.5, critical: 1.0 },
+  HTTP_AVG_LATENCY: { warning: 500.0, critical: 1000.0 },
+  HTTP_ERROR_RATE: { warning: 1.0, critical: 5.0 },
+  HIKARICP_POOL_USAGE: { warning: 80.0, critical: 90.0 },
+  THREADPOOL_QUEUE_USAGE: { warning: 50.0, critical: 80.0 },
+}
+
 interface EditableRow {
   metricKey: string
   label: string
@@ -45,10 +63,13 @@ interface EditableRow {
   warning: string
   critical: string
   isCustomized: boolean
+  defaultWarning: number
+  defaultCritical: number
 }
 
 export default function ThresholdPage() {
   const { scope } = useParams<{ scope?: string }>()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [tab, setTab] = useState<'instance' | 'app'>(scope === 'app' ? 'app' : 'instance')
 
@@ -111,6 +132,7 @@ export default function ThresholdPage() {
 
   function toInstanceRow(t: InstanceThresholdItem): EditableRow {
     const meta = instanceMetricMeta[t.metricKey]
+    const def = instanceDefaults[t.metricKey]
     return {
       metricKey: t.metricKey,
       label: meta.label,
@@ -119,11 +141,14 @@ export default function ThresholdPage() {
       warning: String(t.warningValue),
       critical: String(t.criticalValue),
       isCustomized: t.isCustomized,
+      defaultWarning: def.warning,
+      defaultCritical: def.critical,
     }
   }
 
   function toServerRow(t: ServerThresholdItem): EditableRow {
     const meta = serverMetricMeta[t.metricKey]
+    const def = serverDefaults[t.metricKey]
     return {
       metricKey: t.metricKey,
       label: meta.label,
@@ -132,12 +157,37 @@ export default function ThresholdPage() {
       warning: String(t.warningValue),
       critical: String(t.criticalValue),
       isCustomized: t.isCustomized,
+      defaultWarning: def.warning,
+      defaultCritical: def.critical,
     }
   }
 
   const updateRow = (metricKey: string, field: 'warning' | 'critical', value: string) => {
     setSaved(false)
-    setRows((prev) => prev.map((r) => (r.metricKey === metricKey ? { ...r, [field]: value } : r)))
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.metricKey !== metricKey) return r
+        const updated = { ...r, [field]: value }
+        // 수치가 기본값과 다르면 커스텀으로 자동 판정
+        const isCustom =
+          Number(updated.warning) !== updated.defaultWarning ||
+          Number(updated.critical) !== updated.defaultCritical
+        return { ...updated, isCustomized: isCustom }
+      }),
+    )
+  }
+
+  const handleResetToDefaults = () => {
+    if (!confirm('모든 메트릭의 임계치를 기본 권장값으로 초기화하시겠습니까? (저장 버튼을 눌러야 최종 반영됩니다)')) return
+    setSaved(false)
+    setRows((prev) =>
+      prev.map((r) => ({
+        ...r,
+        warning: String(r.defaultWarning),
+        critical: String(r.defaultCritical),
+        isCustomized: false,
+      })),
+    )
   }
 
   const invalidRow = rows.find((r) => Number(r.warning) >= Number(r.critical))
@@ -193,302 +243,342 @@ export default function ThresholdPage() {
   }
 
   const customizedCount = rows.filter((r) => r.isCustomized).length
+  const defaultCount = rows.length - customizedCount
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6">
-      {/* 상단 헤더 & 셀렉터 바 */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-            {tab === 'instance' ? '인스턴스 임계치 설정' : '앱 임계치 설정 (Spring Boot)'}
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {tab === 'instance'
-              ? '호스트 인스턴스 메트릭(CPU, 메모리, 디스크, 네트워크)의 경고 및 심각 기준값을 정의합니다.'
-              : 'Spring Boot 애플리케이션 메트릭(JVM, HTTP, HikariCP, ThreadPool)의 경고 및 심각 기준값을 정의합니다.'}
-          </p>
+    <div className="w-full max-w-6xl mx-auto space-y-6">
+      {/* 1. 상단 글로벌 헤더 */}
+      <div className="border-b border-slate-200 pb-4">
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">임계치 설정</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          호스트 인스턴스 및 Spring Boot 애플리케이션의 경고 및 심각 알림 임계치를 설정합니다.
+        </p>
+      </div>
+
+      {/* 2. 상단 탭 & 대상 필터 바 (Dashboard와 일관된 디자인) */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+        {/* 좌측: 호스트 / 앱 탭 전환 세그먼트 */}
+        <div className="flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+          <button
+            type="button"
+            onClick={() => {
+              setTab('instance')
+              navigate('/thresholds/instance')
+            }}
+            className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-bold transition-all ${
+              tab === 'instance'
+                ? 'bg-slate-800 text-white shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <span>Host 인스턴스 (EC2)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setTab('app')
+              navigate('/thresholds/app')
+            }}
+            className={`flex items-center gap-2 rounded-md px-3.5 py-1.5 text-xs font-bold transition-all ${
+              tab === 'app'
+                ? 'bg-emerald-700 text-white shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <span>Spring Boot 앱</span>
+          </button>
         </div>
 
-        {/* 인스턴스/앱 선택 셀렉터 */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* 인스턴스 선택 */}
-          <select
-            value={instance.instanceId}
-            onChange={(e) => {
-              const newParams = new URLSearchParams(searchParams)
-              newParams.set('instance', e.target.value)
-              newParams.delete('server')
-              setSearchParams(newParams)
-            }}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-          >
-            {instances.map((i) => (
-              <option key={i.instanceId} value={i.instanceId}>
-                {i.name} ({i.ip})
-              </option>
-            ))}
-          </select>
-
-          {/* 앱 선택 (앱 탭일 때만 활성화) */}
-          {tab === 'app' && servers.length > 0 && (
+        {/* 우측: 대상 인스턴스 및 앱 선택 드롭다운 */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex items-center gap-1.5 text-xs">
+            <span className="font-semibold text-slate-500">대상 인스턴스:</span>
             <select
-              value={server?.serverId ?? ''}
+              value={instance.instanceId}
               onChange={(e) => {
                 const newParams = new URLSearchParams(searchParams)
-                newParams.set('server', e.target.value)
+                newParams.set('instance', e.target.value)
+                newParams.delete('server')
                 setSearchParams(newParams)
               }}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             >
-              {servers.map((s) => (
-                <option key={s.serverId} value={s.serverId}>
-                  {s.name} (포트: {s.port ?? '—'})
+              {instances.map((i) => (
+                <option key={i.instanceId} value={i.instanceId}>
+                  {i.name} ({i.ip})
                 </option>
               ))}
             </select>
+          </div>
+
+          {tab === 'app' && servers.length > 0 && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="font-semibold text-slate-500">소속 앱:</span>
+              <select
+                value={server?.serverId ?? ''}
+                onChange={(e) => {
+                  const newParams = new URLSearchParams(searchParams)
+                  newParams.set('server', e.target.value)
+                  setSearchParams(newParams)
+                }}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              >
+                {servers.map((s) => (
+                  <option key={s.serverId} value={s.serverId}>
+                    {s.name} (포트: {s.port ?? '—'})
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
         </div>
       </div>
 
-      {/* 2열 반응형 그리드 레이아웃 */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* 좌측 컬럼: 대상 정보 요약 + 임계치 기준 안내 (4 cols) */}
-        <div className="lg:col-span-4 space-y-6">
-          {/* 대상 정보 카드 */}
-          <Card className="p-5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-              <h2 className="font-bold text-slate-900">설정 대상</h2>
-              <span className="rounded bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700">
-                {tab === 'instance' ? '호스트 인스턴스' : 'Spring Boot 앱'}
-              </span>
-            </div>
+      {/* 3. 4대 KPI 요약 스트립 (Dashboard 톤앤매너 통일) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {/* 카드 1: 설정 대상 */}
+        <Card className="p-4">
+          <div className="text-xs font-semibold text-slate-500">설정 대상</div>
+          <div className="mt-1 text-base font-bold text-slate-900 truncate">
+            {tab === 'instance' ? instance.name : server?.name ?? '선택 없음'}
+          </div>
+          <div className="mt-0.5 text-xs font-mono text-slate-500 truncate">
+            {tab === 'instance' ? instance.ip : `포트: ${server?.port ?? '—'}`}
+          </div>
+        </Card>
 
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between py-1 border-b border-slate-50">
-                <span className="text-slate-500">대상 이름</span>
-                <span className="font-semibold text-slate-800">
-                  {tab === 'instance' ? instance.name : server?.name ?? '선택 없음'}
-                </span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-50">
-                <span className="text-slate-500">{tab === 'instance' ? '호스트 IP' : '서버 포트'}</span>
-                <span className="font-mono text-slate-800">
-                  {tab === 'instance' ? instance.ip : server?.port ?? '—'}
-                </span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-50">
-                <span className="text-slate-500">임계치 관리 메트릭</span>
-                <span className="font-medium text-slate-800">{rows.length}개 항목</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-slate-500">사용자 정의 상태</span>
-                <span className="text-xs font-semibold text-slate-700">
-                  {customizedCount > 0 ? `${customizedCount}개 커스텀 설정` : '모두 기본값 적용'}
-                </span>
-              </div>
-            </div>
+        {/* 카드 2: 관리 메트릭 수 */}
+        <Card className="p-4">
+          <div className="text-xs font-semibold text-slate-500">관리 메트릭</div>
+          <div className="mt-1 text-2xl font-bold text-slate-900">{rows.length}개</div>
+          <div className="mt-0.5 text-xs text-slate-500">실시간 임계치 감시 항목</div>
+        </Card>
 
-            <div className="mt-5 pt-4 border-t border-slate-100">
-              <Link
-                to={
-                  tab === 'instance'
-                    ? `/monitoring?instance=${instance.instanceId}`
-                    : `/monitoring?instance=${instance.instanceId}&app=${server?.serverId ?? ''}`
-                }
-                className="block w-full text-center rounded-md bg-brand-50 px-3 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-100 transition-colors"
-              >
-                해당 대상 실시간 모니터링 바로가기 ›
-              </Link>
-            </div>
-          </Card>
+        {/* 카드 3: 커스텀 설정 항목 */}
+        <Card className="p-4">
+          <div className="text-xs font-semibold text-slate-500">커스텀 설정</div>
+          <div className="mt-1 text-2xl font-bold text-brand-700">{customizedCount}개</div>
+          <div className="mt-0.5 text-xs text-slate-500">사용자 지정 기준값</div>
+        </Card>
 
-          {/* 임계치 판정 가이드 카드 */}
-          <Card className="p-5 bg-slate-50/70 border-slate-200 space-y-3">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-              임계치 상태 판정 가이드
-            </h3>
-            
-            <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs leading-relaxed text-amber-900">
-              <div className="font-bold flex items-center gap-1.5 text-amber-800 mb-1">
-                <span className="h-2 w-2 rounded-full bg-amber-500" />
-                경고 (Warning)
-              </div>
-              지표가 경고 기준값을 초과할 때 모니터링 차트와 대시보드 상태 점이 <strong>주황색 주의</strong> 상태로 전환됩니다.
-            </div>
-
-            <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-3 text-xs leading-relaxed text-rose-900">
-              <div className="font-bold flex items-center gap-1.5 text-rose-800 mb-1">
-                <span className="h-2 w-2 rounded-full bg-rose-500" />
-                심각 (Critical)
-              </div>
-              지표가 심각 기준값을 초과할 때 즉시 <strong>붉은색 장애/위험</strong> 상태로 강조 표시됩니다.
-            </div>
-
-            <p className="text-[11px] text-slate-500 pt-1">
-              * 규칙: <code className="font-semibold text-slate-700">경고값 &lt; 심각값</code> 관계를 만족해야 저장이 가능합니다.
-            </p>
-          </Card>
-        </div>
-
-        {/* 우측 컬럼: 임계치 설정 테이블 및 저장 버튼 (8 cols) */}
-        <div className="lg:col-span-8 space-y-6">
-          <Card className="p-6">
-            <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-3">
-              <div>
-                <h2 className="text-base font-bold text-slate-900">
-                  {tab === 'instance' ? `${instance.name} 호스트 임계치` : `${server?.name ?? ''} 앱 임계치`}
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  각 지표별 경고 및 심각 수치를 입력한 후 우측 하단 저장을 클릭하세요.
-                </p>
-              </div>
-              {customizedCount > 0 && (
-                <span className="inline-flex items-center rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-semibold text-brand-800">
-                  {customizedCount}개 항목 커스텀
-                </span>
-              )}
-            </div>
-
-            {loading ? (
-              <div className="py-12 text-center text-sm text-slate-400">
-                임계치 설정을 불러오는 중...
-              </div>
-            ) : tab === 'app' && !server ? (
-              <div className="py-12 text-center text-sm text-slate-400">
-                이 인스턴스에 등록된 애플리케이션이 없습니다.
-              </div>
-            ) : (
-              <>
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                        <th className="py-2.5 px-3">메트릭 항목</th>
-                        <th className="py-2.5 px-3 w-36">
-                          <span className="inline-flex items-center gap-1 text-amber-700">
-                            <span className="h-2 w-2 rounded-full bg-amber-500" />
-                            경고 (Warning)
-                          </span>
-                        </th>
-                        <th className="py-2.5 px-3 w-36">
-                          <span className="inline-flex items-center gap-1 text-rose-700">
-                            <span className="h-2 w-2 rounded-full bg-rose-500" />
-                            심각 (Critical)
-                          </span>
-                        </th>
-                        <th className="py-2.5 px-3 text-right">설정 상태</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {rows.map((row) => {
-                        const isError = Number(row.warning) >= Number(row.critical)
-                        return (
-                          <tr
-                            key={row.metricKey}
-                            className={`hover:bg-slate-50/60 transition-colors ${
-                              isError ? 'bg-rose-50/50' : row.isCustomized ? 'bg-brand-50/30' : ''
-                            }`}
-                          >
-                            <td className="py-3 px-3">
-                              <div className="font-semibold text-slate-800">{row.label}</div>
-                              <div className="text-[11px] text-slate-400">{row.desc}</div>
-                            </td>
-
-                            {/* 경고 입력 */}
-                            <td className="py-3 px-3">
-                              <div className="relative flex items-center">
-                                <input
-                                  type="number"
-                                  value={row.warning}
-                                  onChange={(e) => updateRow(row.metricKey, 'warning', e.target.value)}
-                                  className={`w-full rounded-md border bg-white py-1.5 pl-2.5 pr-8 text-sm font-mono transition-colors focus:outline-none focus:ring-1 ${
-                                    isError
-                                      ? 'border-rose-400 text-rose-600 focus:border-rose-500 focus:ring-rose-500'
-                                      : 'border-slate-300 focus:border-amber-500 focus:ring-amber-500'
-                                  }`}
-                                />
-                                <span className="absolute right-2 text-xs font-semibold text-slate-400 pointer-events-none">
-                                  {row.unit}
-                                </span>
-                              </div>
-                            </td>
-
-                            {/* 심각 입력 */}
-                            <td className="py-3 px-3">
-                              <div className="relative flex items-center">
-                                <input
-                                  type="number"
-                                  value={row.critical}
-                                  onChange={(e) => updateRow(row.metricKey, 'critical', e.target.value)}
-                                  className={`w-full rounded-md border bg-white py-1.5 pl-2.5 pr-8 text-sm font-mono transition-colors focus:outline-none focus:ring-1 ${
-                                    isError
-                                      ? 'border-rose-400 text-rose-600 focus:border-rose-500 focus:ring-rose-500'
-                                      : 'border-slate-300 focus:border-rose-500 focus:ring-rose-500'
-                                  }`}
-                                />
-                                <span className="absolute right-2 text-xs font-semibold text-slate-400 pointer-events-none">
-                                  {row.unit}
-                                </span>
-                              </div>
-                            </td>
-
-                            {/* 상태 배지 */}
-                            <td className="py-3 px-3 text-right">
-                              {isError ? (
-                                <span className="inline-block rounded bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-700">
-                                  범위 오류
-                                </span>
-                              ) : row.isCustomized ? (
-                                <span className="inline-block rounded bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700">
-                                  커스텀
-                                </span>
-                              ) : (
-                                <span className="inline-block text-xs text-slate-400">기본값</span>
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* 에러 및 피드백 메시지 */}
-                {invalidRow && (
-                  <div className="mt-4 rounded-lg border border-rose-300 bg-rose-50 p-3 text-xs font-medium text-rose-700">
-                    [{invalidRow.label}] 심각값은 경고값보다 커야 합니다.
-                  </div>
-                )}
-                {saveError && (
-                  <div className="mt-4 rounded-lg border border-rose-300 bg-rose-50 p-3 text-xs font-medium text-rose-700">
-                    {saveError}
-                  </div>
-                )}
-                {saved && (
-                  <div className="mt-4 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800">
-                    임계치 설정이 성공적으로 저장되었습니다.
-                  </div>
-                )}
-
-                {/* 하단 저장 바 */}
-                <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-xs text-slate-400">
-                    * 임계치를 변경하면 실시간 모니터링 상태 점 및 알림 기준에 즉시 반영됩니다.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={saving || !!invalidRow}
-                    className="rounded-md bg-brand-500 px-6 py-2 text-sm font-semibold text-white hover:bg-brand-600 shadow-sm transition-colors disabled:opacity-50"
-                  >
-                    {saving ? '저장 중...' : '임계치 저장'}
-                  </button>
-                </div>
-              </>
-            )}
-          </Card>
-        </div>
+        {/* 카드 4: 기본값 유지 항목 */}
+        <Card className="p-4">
+          <div className="text-xs font-semibold text-slate-500">기본값 유지</div>
+          <div className="mt-1 text-2xl font-bold text-emerald-600">{defaultCount}개</div>
+          <div className="mt-0.5 text-xs text-slate-500">권장 표준 기준값</div>
+        </Card>
       </div>
+
+      {/* 4. 메인 임계치 관리 테이블 카드 (Full-Width) */}
+      <Card className="p-6">
+        {/* 테이블 카드 상단 헤더 */}
+        <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3.5">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">
+              {tab === 'instance' ? `${instance.name} 호스트 임계치` : `${server?.name ?? ''} 앱 임계치`}
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              각 지표별 경고 및 심각 수치를 입력한 후 우측 하단 저장 버튼을 클릭하세요.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleResetToDefaults}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs self-start sm:self-auto"
+          >
+            <svg className="h-3.5 w-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>전체 기본값으로 복원</span>
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="py-16 text-center text-sm text-slate-400">
+            임계치 설정을 불러오는 중...
+          </div>
+        ) : tab === 'app' && !server ? (
+          <div className="py-16 text-center text-sm text-slate-400">
+            이 인스턴스에 등록된 애플리케이션이 없습니다.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <th className="py-3 px-3">메트릭 항목</th>
+                    <th className="py-3 px-3">기본 권장 기준</th>
+                    <th className="py-3 px-3 w-40">
+                      <span className="inline-flex items-center gap-1.5 text-amber-700">
+                        <span className="h-2 w-2 rounded-full bg-amber-500" />
+                        경고 (Warning)
+                      </span>
+                    </th>
+                    <th className="py-3 px-3 w-40">
+                      <span className="inline-flex items-center gap-1.5 text-rose-700">
+                        <span className="h-2 w-2 rounded-full bg-rose-500" />
+                        심각 (Critical)
+                      </span>
+                    </th>
+                    <th className="py-3 px-3 text-right">설정 상태</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {rows.map((row) => {
+                    const isError = Number(row.warning) >= Number(row.critical)
+                    return (
+                      <tr
+                        key={row.metricKey}
+                        className={`hover:bg-slate-50/70 transition-colors ${
+                          isError ? 'bg-rose-50/40' : row.isCustomized ? 'bg-brand-50/20' : ''
+                        }`}
+                      >
+                        {/* 메트릭 이름 & 설명 */}
+                        <td className="py-3.5 px-3">
+                          <div className="font-bold text-slate-900">{row.label}</div>
+                          <div className="text-xs text-slate-400 mt-0.5">{row.desc}</div>
+                        </td>
+
+                        {/* 기본값 가이드 */}
+                        <td className="py-3.5 px-3">
+                          <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-mono text-slate-600">
+                            경고: {row.defaultWarning}{row.unit} · 심각: {row.defaultCritical}{row.unit}
+                          </span>
+                        </td>
+
+                        {/* 경고 입력 */}
+                        <td className="py-3.5 px-3">
+                          <div className="relative flex items-center">
+                            <input
+                              type="number"
+                              step="any"
+                              value={row.warning}
+                              onChange={(e) => updateRow(row.metricKey, 'warning', e.target.value)}
+                              className={`w-full rounded-lg border bg-white py-1.5 pl-3 pr-8 text-sm font-mono transition-colors focus:outline-none focus:ring-1 ${
+                                isError
+                                  ? 'border-rose-400 text-rose-600 focus:border-rose-500 focus:ring-rose-500'
+                                  : 'border-slate-300 focus:border-amber-500 focus:ring-amber-500'
+                              }`}
+                            />
+                            <span className="absolute right-2.5 text-xs font-semibold text-slate-400 pointer-events-none">
+                              {row.unit}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* 심각 입력 */}
+                        <td className="py-3.5 px-3">
+                          <div className="relative flex items-center">
+                            <input
+                              type="number"
+                              step="any"
+                              value={row.critical}
+                              onChange={(e) => updateRow(row.metricKey, 'critical', e.target.value)}
+                              className={`w-full rounded-lg border bg-white py-1.5 pl-3 pr-8 text-sm font-mono transition-colors focus:outline-none focus:ring-1 ${
+                                isError
+                                  ? 'border-rose-400 text-rose-600 focus:border-rose-500 focus:ring-rose-500'
+                                  : 'border-slate-300 focus:border-rose-500 focus:ring-rose-500'
+                              }`}
+                            />
+                            <span className="absolute right-2.5 text-xs font-semibold text-slate-400 pointer-events-none">
+                              {row.unit}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* 설정 상태 뱃지 */}
+                        <td className="py-3.5 px-3 text-right">
+                          {isError ? (
+                            <span className="inline-block rounded-md border border-rose-200 bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-700">
+                              범위 오류
+                            </span>
+                          ) : row.isCustomized ? (
+                            <span className="inline-block rounded-md border border-brand-200 bg-brand-50 px-2.5 py-0.5 text-xs font-bold text-brand-700">
+                              커스텀
+                            </span>
+                          ) : (
+                            <span className="inline-block rounded-md border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                              기본값
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* 에러 피드백 메시지 */}
+            {invalidRow && (
+              <div className="rounded-lg border border-rose-300 bg-rose-50 p-3 text-xs font-medium text-rose-700 flex items-center gap-2">
+                <svg className="h-4 w-4 shrink-0 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>[{invalidRow.label}] 심각값은 경고값보다 커야 합니다. (경고 &lt; 심각)</span>
+              </div>
+            )}
+
+            {saveError && (
+              <div className="rounded-lg border border-rose-300 bg-rose-50 p-3 text-xs font-medium text-rose-700">
+                {saveError}
+              </div>
+            )}
+
+            {saved && (
+              <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-xs font-bold text-emerald-800 flex items-center gap-2">
+                <svg className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                <span>임계치 설정이 성공적으로 저장되었습니다. 실시간 감시에 즉시 반영됩니다.</span>
+              </div>
+            )}
+
+            {/* 하단 액션 바 */}
+            <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100">
+              <p className="text-xs text-slate-400">
+                * 지표가 경고값을 초과하면 주황색(Warning), 심각값을 초과하면 붉은색(Critical) 알림이 발생합니다.
+              </p>
+
+              <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                <Link
+                  to={
+                    tab === 'instance'
+                      ? `/monitoring?instance=${instance.instanceId}`
+                      : `/monitoring?instance=${instance.instanceId}&app=${server?.serverId ?? ''}`
+                  }
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+                >
+                  <span>실시간 모니터링 확인</span>
+                  <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving || Boolean(invalidRow)}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-6 py-2.5 text-xs font-bold text-white hover:bg-brand-600 shadow-sm transition-colors disabled:opacity-60"
+                >
+                  {saving ? (
+                    <span>저장 중...</span>
+                  ) : (
+                    <>
+                      <span>변경사항 저장하기</span>
+                      <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Card>
     </div>
   )
 }
