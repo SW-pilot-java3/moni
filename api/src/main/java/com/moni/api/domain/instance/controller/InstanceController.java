@@ -5,6 +5,7 @@ import com.moni.api.domain.instance.service.InstanceRealtimeMetricService;
 import com.moni.api.domain.instance.service.InstanceService;
 import com.moni.api.domain.instance.sse.InstanceMetricSseEmitterRegistry;
 import com.moni.api.global.response.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,6 +18,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.time.LocalDate;
 import java.util.List;
 
+@Tag(name = "인스턴스")
 @RestController
 @RequestMapping("/api/v1/instances")
 @RequiredArgsConstructor
