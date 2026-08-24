@@ -7,6 +7,7 @@ import { ApiError } from '../lib/api'
 import {
   getInstances,
   getServers,
+  deleteInstance,
   type InstanceListItem,
   type ServerItem,
 } from '../lib/instances'
@@ -377,9 +378,19 @@ export default function DashboardPage() {
                         <span className="text-slate-300">|</span>
                         <button
                           type="button"
-                          onClick={() =>
-                            alert('인스턴스 삭제는 안전을 위해 소속된 앱을 모두 삭제한 뒤 진행해주세요.')
-                          }
+                          onClick={async () => {
+                            if (inst.serverCount > 0) {
+                              alert('인스턴스 삭제는 안전을 위해 소속된 앱을 모두 삭제한 뒤 진행해주세요.')
+                              return
+                            }
+                            if (!confirm(`'${inst.name}' 인스턴스를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) return
+                            try {
+                              await deleteInstance(inst.instanceId)
+                              setInstances((prev) => prev.filter((i) => i.instanceId !== inst.instanceId))
+                            } catch (e) {
+                              alert(e instanceof Error ? e.message : '삭제 중 오류가 발생했습니다.')
+                            }
+                          }}
                           className="text-xs font-medium text-danger-500 hover:text-danger-700 px-1"
                         >
                           삭제

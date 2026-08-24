@@ -44,6 +44,10 @@ export function createInstance(name: string, ip: string) {
   return api.post<InstanceCreateResult>('/api/v1/instances', { name, ip })
 }
 
+export function deleteInstance(instanceId: number) {
+  return api.delete<void>(`/api/v1/instances/${instanceId}`)
+}
+
 export type InstanceMetricKey = 'CPU_USAGE' | 'MEM_USAGE' | 'DISK_USAGE' | 'DISK_LATENCY' | 'NET_ERROR_RATE'
 
 export interface InstanceThresholdItem {
