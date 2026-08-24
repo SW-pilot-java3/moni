@@ -1,10 +1,11 @@
-import { Fragment, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import ApiKeyModal from '../components/manage/ApiKeyModal'
 import Card from '../components/ui/Card'
 import StatusDot from '../components/ui/StatusDot'
 import { ApiError } from '../lib/api'
 import { getInstances, getServers, type InstanceListItem, type ServerItem } from '../lib/instances'
-import { createApiKey, deleteServer } from '../lib/servers'
+import { deleteServer } from '../lib/servers'
 
 function formatDate(value: string | null) {
   if (!value) return '없음'
@@ -24,9 +25,7 @@ export default function ManagePage() {
   const [servers, setServers] = useState<ServerItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [issuedKeys, setIssuedKeys] = useState<Record<number, string>>({})
-  const [copiedKey, setCopiedKey] = useState<number | null>(null)
-  const [keyError, setKeyError] = useState<string | null>(null)
+  const [selectedAppForKeys, setSelectedAppForKeys] = useState<ServerItem | null>(null)
 
   useEffect(() => {
     getInstances()
@@ -45,22 +44,6 @@ export default function ManagePage() {
       .then(setServers)
       .catch(() => setServers([]))
   }, [instance])
-
-  const handleIssueKey = async (serverId: number) => {
-    setKeyError(null)
-    try {
-      const res = await createApiKey(serverId)
-      setIssuedKeys((prev) => ({ ...prev, [serverId]: res.apiKey }))
-    } catch (err) {
-      setKeyError(err instanceof ApiError ? `${err.message} (${err.status})` : '서버에 연결할 수 없습니다.')
-    }
-  }
-
-  const handleCopyKey = async (serverId: number, key: string) => {
-    await navigator.clipboard.writeText(key)
-    setCopiedKey(serverId)
-    setTimeout(() => setCopiedKey(null), 1500)
-  }
 
   const handleDeleteServer = async (serverId: number) => {
     if (!confirm('정말 이 앱을 삭제하시겠습니까? 관련 수집 데이터와 API 키가 모두 삭제됩니다.')) return
@@ -131,12 +114,6 @@ export default function ManagePage() {
           </select>
         </div>
       </div>
-
-      {keyError && (
-        <div className="rounded-lg border border-danger-500/40 bg-danger-50 p-4 text-sm text-danger-600">
-          {keyError}
-        </div>
-      )}
 
       {/* 2열 반응형 그리드 레이아웃 */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -245,59 +222,34 @@ export default function ManagePage() {
                     </tr>
                   )}
                   {servers.map((app) => (
-                    <Fragment key={app.serverId}>
-                      <tr className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-3 font-semibold text-slate-800">{app.name}</td>
-                        <td className="py-3 px-3 font-mono text-xs text-slate-600">{app.port ?? '—'}</td>
-                        <td className="py-3 px-3">
-                          <StatusDot
-                            tone={app.status === 'CONNECTED' ? 'normal' : 'idle'}
-                            label={app.status === 'CONNECTED' ? '연결됨' : '대기 중'}
-                          />
-                        </td>
-                        <td className="py-3 px-3 text-xs text-slate-500">{formatDate(app.lastReceivedAt)}</td>
-                        <td className="py-3 px-3 text-right space-x-2">
-                          <button
-                            type="button"
-                            onClick={() => handleIssueKey(app.serverId)}
-                            className="text-xs font-medium text-slate-700 hover:text-brand-600"
-                          >
-                            키 발급
-                          </button>
-                          <span className="text-slate-300">|</span>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteServer(app.serverId)}
-                            className="text-xs font-medium text-danger-500 hover:text-danger-700"
-                          >
-                            삭제
-                          </button>
-                        </td>
-                      </tr>
-
-                      {/* 발급된 API 키 배너 */}
-                      {issuedKeys[app.serverId] && (
-                        <tr className="bg-amber-50/50 border-b border-amber-100">
-                          <td colSpan={5} className="p-4">
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
-                                [{app.name}] 발급된 API Key (보안을 위해 지금 한 번만 표시됩니다)
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => handleCopyKey(app.serverId, issuedKeys[app.serverId])}
-                                className="rounded bg-white border border-amber-300 px-2.5 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100 shadow-2xs transition-colors"
-                              >
-                                {copiedKey === app.serverId ? '✓ 복사됨!' : 'API 키 복사'}
-                              </button>
-                            </div>
-                            <code className="block w-full overflow-x-auto rounded border border-amber-200 bg-white p-2.5 font-mono text-xs text-slate-800">
-                              {issuedKeys[app.serverId]}
-                            </code>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
+                    <tr key={app.serverId} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-3 font-semibold text-slate-800">{app.name}</td>
+                      <td className="py-3 px-3 font-mono text-xs text-slate-600">{app.port ?? '—'}</td>
+                      <td className="py-3 px-3">
+                        <StatusDot
+                          tone={app.status === 'CONNECTED' ? 'normal' : 'idle'}
+                          label={app.status === 'CONNECTED' ? '연결됨' : '대기 중'}
+                        />
+                      </td>
+                      <td className="py-3 px-3 text-xs text-slate-500">{formatDate(app.lastReceivedAt)}</td>
+                      <td className="py-3 px-3 text-right space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAppForKeys(app)}
+                          className="text-xs font-medium text-brand-600 hover:text-brand-800 font-semibold"
+                        >
+                          키 관리
+                        </button>
+                        <span className="text-slate-300">|</span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteServer(app.serverId)}
+                          className="text-xs font-medium text-danger-500 hover:text-danger-700"
+                        >
+                          삭제
+                        </button>
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
@@ -312,6 +264,13 @@ export default function ManagePage() {
           </Card>
         </div>
       </div>
+
+      {/* API Key 관리 및 재발급 모달 */}
+      <ApiKeyModal
+        app={selectedAppForKeys}
+        instanceName={instance.name}
+        onClose={() => setSelectedAppForKeys(null)}
+      />
     </div>
   )
 }

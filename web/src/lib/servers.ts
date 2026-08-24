@@ -18,6 +18,13 @@ export interface ApiKeyCreateResult {
   createdAt: string
 }
 
+export interface ApiKeyRotateResult {
+  apiKeyId: number
+  serverId: number
+  newApiKey: string
+  createdAt: string
+}
+
 export interface ApiKeyStatus {
   hasApiKey: boolean
   createdAt: string | null
@@ -34,6 +41,10 @@ export function deleteServer(serverId: number) {
 
 export function createApiKey(serverId: number) {
   return api.post<ApiKeyCreateResult>(`/api/v1/servers/${serverId}/api-keys`)
+}
+
+export function rotateApiKey(serverId: number) {
+  return api.post<ApiKeyRotateResult>(`/api/v1/servers/${serverId}/api-keys/rotate`)
 }
 
 export function getApiKeyStatus(serverId: number) {
