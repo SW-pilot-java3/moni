@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Card from '../components/ui/Card'
 import { ApiError } from '../lib/api'
 import {
@@ -443,9 +443,10 @@ export default function ThresholdPage() {
 
                         {/* 기본값 가이드 */}
                         <td className="py-3.5 px-3">
-                          <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-mono text-slate-600">
-                            경고: {row.defaultWarning}{row.unit} · 심각: {row.defaultCritical}{row.unit}
-                          </span>
+                          <div className="flex flex-col gap-0.5 text-xs font-mono">
+                            <span className="text-amber-600 font-semibold">경고: {row.defaultWarning}{row.unit}</span>
+                            <span className="text-rose-600 font-semibold">심각: {row.defaultCritical}{row.unit}</span>
+                          </div>
                         </td>
 
                         {/* 경고 입력 */}
@@ -543,19 +544,7 @@ export default function ThresholdPage() {
               </p>
 
               <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
-                <Link
-                  to={
-                    tab === 'instance'
-                      ? `/monitoring?instance=${instance.instanceId}`
-                      : `/monitoring?instance=${instance.instanceId}&app=${server?.serverId ?? ''}`
-                  }
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
-                >
-                  <span>실시간 모니터링 확인</span>
-                  <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
+
 
                 <button
                   type="button"
@@ -566,12 +555,7 @@ export default function ThresholdPage() {
                   {saving ? (
                     <span>저장 중...</span>
                   ) : (
-                    <>
-                      <span>변경사항 저장하기</span>
-                      <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    </>
+                    <span>저장</span>
                   )}
                 </button>
               </div>
