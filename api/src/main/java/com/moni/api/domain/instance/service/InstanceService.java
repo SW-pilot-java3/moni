@@ -226,7 +226,7 @@ public class InstanceService {
         }
 
         LocalDateTime from = queryDate.atStartOfDay();
-        LocalDateTime to = queryDate.atTime(LocalTime.MAX);
+        LocalDateTime to = queryDate.plusDays(1).atStartOfDay();
 
         List<InstanceStatCpu> cpuStats = instanceStatCpuRepository
                 .findAllByInstanceIdAndTimeWindowAndStatTimeBetweenOrderByStatTimeAsc(instanceId, TIME_WINDOW_1H, from, to);
