@@ -249,8 +249,8 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
     : (historySummary?.executors.reduce((sum, e) => sum + (e.queuedTasksAvg ?? 0), 0) ?? 0)
 
   const totalExecRemaining = boundedExecutors.reduce((sum, e) => sum + e.queueRemaining, 0)
-  const totalExecMaxLabel = hasUnboundedExecutor ? `${totalExecMax}+∞` : `${totalExecMax}`
-  const totalExecRemainingLabel = hasUnboundedExecutor ? `${totalExecRemaining}+∞` : `${totalExecRemaining}`
+  const totalExecMaxLabel = totalExecMax > 0 ? `${totalExecMax}` : '무제한'
+  const totalExecRemainingLabel = `${totalExecRemaining}`
 
   // HTTP 성능 지표
   const totalRps = isRealtime
