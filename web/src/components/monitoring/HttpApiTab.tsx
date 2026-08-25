@@ -1,5 +1,18 @@
 import { useState } from 'react'
-import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from 'recharts'
+import {
+  Area,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ComposedChart,
+  Legend,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import Card from '../ui/Card'
 import CustomChartTooltip from './CustomChartTooltip'
 import type { HttpEndpointMetric } from '../../lib/servers'
@@ -27,6 +40,7 @@ export default function HttpApiTab({
   avgErrorRate: number
 }) {
   const [selectedUri, setSelectedUri] = useState<string | null>(endpoints[0]?.uri ?? null)
+  const [chartMetric, setChartMetric] = useState<'rps' | 'latency'>('rps')
   const selected = endpoints.find((e) => e.uri === selectedUri) ?? endpoints[0]
 
   const totalAvgLatencyTone = getTone(avgLatency, DEFAULT_THRESHOLDS.HTTP_AVG_LATENCY.warn, DEFAULT_THRESHOLDS.HTTP_AVG_LATENCY.crit)
@@ -38,7 +52,7 @@ export default function HttpApiTab({
       {/* 상단 4개 슬림 지표 카드 */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 shrink-0">
         <Card className="p-3">
-          <div className="text-[11px] text-slate-500">총 RPS (요청/초)</div>
+          <div className="text-[11px] text-slate-500">총 RPS (초당 요청 수)</div>
           <div className="mt-0.5 text-xl font-bold text-slate-900">{totalRps.toFixed(1)} <span className="text-xs font-normal text-slate-400">req/s</span></div>
           <div className="mt-0.5 text-[10px] text-slate-400">전체 API 요청 처리량</div>
         </Card>
@@ -57,7 +71,7 @@ export default function HttpApiTab({
           <div className="mt-0.5 text-[10px] text-slate-400">엔드포인트 중 최대 지연</div>
         </Card>
         <Card className="p-3">
-          <div className="text-[11px] text-slate-500">전체 에러율</div>
+          <div className="text-[11px] text-slate-500">전체 오류율</div>
           <div className={`mt-0.5 text-xl font-bold ${totalErrorTone === 'danger' ? 'text-danger-600' : totalErrorTone === 'warn' ? 'text-warn-600' : 'text-slate-900'}`}>
             {avgErrorRate.toFixed(1)}%
           </div>
@@ -157,61 +171,180 @@ export default function HttpApiTab({
             </Card>
           )}
 
-          {/* 테이블 카드 */}
+          {/* 엔드포인트 비교 바 차트 & 목록 통합 카드 */}
           <Card className="flex-1 p-4 flex flex-col min-h-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-            <h3 className="mb-3 text-sm font-semibold text-slate-800 shrink-0">
-              API 엔드포인트 목록 <span className="text-xs font-normal text-slate-400">(행 클릭 시 상단 메트릭 전환)</span>
-            </h3>
+            {/* 1. 상단: 타이틀 & 지표 선택 세그먼트 */}
+            <div className="mb-2 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-sm font-semibold text-slate-800">
+                  엔드포인트별 지표 비교
+                </h3>
+                <span className="text-xs text-slate-400 font-normal">
+                  ({endpoints.length}개 API)
+                </span>
+              </div>
+
+              {/* RPS / 응답시간 토글 */}
+              <div className="flex rounded-md border border-slate-200 bg-slate-100 p-0.5 text-[11px] font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setChartMetric('rps')}
+                  className={`rounded px-2 py-0.5 transition-all ${
+                    chartMetric === 'rps'
+                      ? 'bg-white text-brand-700 shadow-2xs font-bold'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  RPS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChartMetric('latency')}
+                  className={`rounded px-2 py-0.5 transition-all ${
+                    chartMetric === 'latency'
+                      ? 'bg-white text-amber-700 shadow-2xs font-bold'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  응답시간
+                </button>
+              </div>
+            </div>
+
             {endpoints.length === 0 ? (
               <p className="text-sm text-slate-400 my-auto text-center">수집된 엔드포인트 데이터가 없습니다.</p>
             ) : (
-              <div className="flex-1 overflow-y-auto min-h-0">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-xs text-slate-400 sticky top-0 bg-white">
-                      <th className="pb-2 font-medium">메서드</th>
-                      <th className="pb-2 font-medium">URI</th>
-                      <th className="pb-2 font-medium">RPS</th>
-                      <th className="pb-2 font-medium">평균 응답</th>
-                      <th className="pb-2 font-medium">오류율</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {endpoints.map((ep) => {
-                      const isSelected = selected?.uri === ep.uri
-                      const latencyTone = getTone(ep.avgLatencyMs, DEFAULT_THRESHOLDS.HTTP_AVG_LATENCY.warn, DEFAULT_THRESHOLDS.HTTP_AVG_LATENCY.crit)
-                      const errorTone = getTone(ep.errorRatePct, DEFAULT_THRESHOLDS.HTTP_ERROR_RATE.warn, DEFAULT_THRESHOLDS.HTTP_ERROR_RATE.crit)
-                      return (
-                        <tr
-                          key={`${ep.method}-${ep.uri}-${ep.status}`}
-                          onClick={() => setSelectedUri(ep.uri)}
-                          className={`cursor-pointer border-b border-slate-100 ${isSelected ? 'bg-brand-50/80 font-medium' : 'hover:bg-slate-50'}`}
-                        >
-                          <td className="py-2 pr-2 whitespace-nowrap">
-                            <span
-                              className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold ${
-                                ep.method === 'GET' ? 'bg-brand-100 text-brand-700' : 'bg-emerald-100 text-emerald-700'
+              <>
+                {/* 2. 슬림 & 세련된 세로 막대그래프 (가로 나열) */}
+                <div className="h-28 w-full shrink-0 pt-1 pb-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={endpoints.map((ep) => {
+                        const pathOnly = ep.uri.startsWith('/') ? ep.uri.slice(1) : ep.uri
+                        const shortUri = pathOnly.length > 14 ? pathOnly.slice(0, 12) + '…' : pathOnly
+                        return {
+                          name: `${ep.method} ${ep.uri}`,
+                          label: `${ep.method} /${shortUri}`,
+                          uri: ep.uri,
+                          method: ep.method,
+                          rps: Number(ep.rps.toFixed(1)),
+                          latencyMs: Number(ep.avgLatencyMs.toFixed(0)),
+                        }
+                      })}
+                      margin={{ top: 4, right: 8, left: -15, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fontSize: 9, fill: '#94a3b8' }}
+                        tickLine={false}
+                        axisLine={{ stroke: '#e2e8f0' }}
+                        interval={0}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 9, fill: '#94a3b8' }}
+                        tickLine={false}
+                        axisLine={false}
+                        width={35}
+                      />
+                      <Tooltip
+                        content={
+                          <CustomChartTooltip
+                            unit={chartMetric === 'rps' ? 'req/s' : 'ms'}
+                          />
+                        }
+                      />
+                      <Bar
+                        dataKey={chartMetric === 'rps' ? 'rps' : 'latencyMs'}
+                        name={chartMetric === 'rps' ? '초당 요청 수 (RPS)' : '평균 응답시간'}
+                        barSize={18}
+                        radius={[3, 3, 0, 0]}
+                        onClick={(data: any) => {
+                          if (data && data.uri) setSelectedUri(data.uri)
+                        }}
+                        className="cursor-pointer"
+                      >
+                        {endpoints.map((ep) => {
+                          const isSelected = selected?.uri === ep.uri
+                          const activeColor = chartMetric === 'rps' ? '#3b82f6' : '#f59e0b'
+                          const defaultColor = chartMetric === 'rps' ? '#bfdbfe' : '#fef3c7'
+                          return (
+                            <Cell
+                              key={ep.uri}
+                              fill={isSelected ? activeColor : defaultColor}
+                              stroke={isSelected ? activeColor : undefined}
+                              strokeWidth={isSelected ? 1.5 : 0}
+                            />
+                          )
+                        })}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* 3. 구분선 및 상세 테이블 목록 */}
+                <div className="mt-2 pt-2 border-t border-slate-100 flex-1 flex flex-col min-h-0">
+                  <div className="mb-1.5 flex items-center justify-between text-[11px] text-slate-400 font-medium shrink-0">
+                    <span>엔드포인트 목록</span>
+                    <span>* 행 또는 막대 클릭 시 선택</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto min-h-0">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-xs text-slate-400 sticky top-0 bg-white">
+                          <th className="pb-1.5 px-2 font-medium w-[54px] border-r border-slate-100">메서드</th>
+                          <th className="pb-1.5 px-2 font-medium border-r border-slate-100">URI</th>
+                          <th className="pb-1.5 px-2 font-medium text-right w-[60px] whitespace-nowrap border-r border-slate-100">RPS</th>
+                          <th className="pb-1.5 px-2 font-medium text-right w-[72px] whitespace-nowrap border-r border-slate-100">평균 응답</th>
+                          <th className="pb-1.5 px-2 font-medium text-right w-[58px] whitespace-nowrap">오류율</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {endpoints.map((ep) => {
+                          const isSelected = selected?.uri === ep.uri
+                          const latencyTone = getTone(ep.avgLatencyMs, DEFAULT_THRESHOLDS.HTTP_AVG_LATENCY.warn, DEFAULT_THRESHOLDS.HTTP_AVG_LATENCY.crit)
+                          const errorTone = getTone(ep.errorRatePct, DEFAULT_THRESHOLDS.HTTP_ERROR_RATE.warn, DEFAULT_THRESHOLDS.HTTP_ERROR_RATE.crit)
+                          return (
+                            <tr
+                              key={`${ep.method}-${ep.uri}-${ep.status}`}
+                              onClick={() => setSelectedUri(ep.uri)}
+                              className={`cursor-pointer border-b border-slate-100 transition-colors ${
+                                isSelected ? 'bg-brand-50/90 font-medium' : 'hover:bg-slate-50'
                               }`}
                             >
-                              {ep.method}
-                            </span>
-                          </td>
-                          <td className="py-2 pr-2 font-mono text-xs whitespace-nowrap text-slate-700 truncate max-w-[120px]" title={ep.uri}>
-                            {ep.uri}
-                          </td>
-                          <td className="py-2 pr-2 whitespace-nowrap text-xs text-slate-700">{ep.rps.toFixed(1)}</td>
-                          <td className={`py-2 pr-2 whitespace-nowrap text-xs ${latencyTone === 'danger' ? 'text-danger-600 font-bold' : latencyTone === 'warn' ? 'text-warn-600 font-bold' : 'text-slate-700'}`}>
-                            {ep.avgLatencyMs.toFixed(0)} ms
-                          </td>
-                          <td className={`py-2 whitespace-nowrap text-xs ${errorTone === 'danger' ? 'text-danger-600 font-bold' : errorTone === 'warn' ? 'text-warn-600 font-bold' : 'text-slate-700'}`}>
-                            {ep.errorRatePct}%
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                              <td className="py-1.5 px-2 whitespace-nowrap border-r border-slate-100/80">
+                                <span
+                                  className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+                                    ep.method === 'GET' ? 'bg-brand-100 text-brand-700' : 'bg-emerald-100 text-emerald-700'
+                                  }`}
+                                >
+                                  {ep.method}
+                                </span>
+                              </td>
+                              <td className="py-1.5 px-2 font-mono text-xs whitespace-nowrap text-slate-700 truncate border-r border-slate-100/80" title={ep.uri}>
+                                {ep.uri}
+                              </td>
+                              <td className="py-1.5 px-2 whitespace-nowrap text-xs text-slate-700 text-right font-mono border-r border-slate-100/80">
+                                {ep.rps.toFixed(1)}
+                              </td>
+                              <td className={`py-1.5 px-2 whitespace-nowrap text-xs text-right font-mono border-r border-slate-100/80 ${
+                                latencyTone === 'danger' ? 'text-danger-600 font-bold' : latencyTone === 'warn' ? 'text-warn-600 font-bold' : 'text-slate-700'
+                              }`}>
+                                {ep.avgLatencyMs.toFixed(0)} ms
+                              </td>
+                              <td className={`py-1.5 px-2 whitespace-nowrap text-xs text-right font-mono ${
+                                errorTone === 'danger' ? 'text-danger-600 font-bold' : errorTone === 'warn' ? 'text-warn-600 font-bold' : 'text-slate-700'
+                              }`}>
+                                {ep.errorRatePct}%
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
             )}
           </Card>
         </div>

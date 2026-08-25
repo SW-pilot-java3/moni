@@ -23,7 +23,7 @@ const KEY_LABEL_MAP: Record<string, { label: string; unit: string }> = {
   utilPct: { label: '디스크 점유율', unit: '%' },
   rxMBps: { label: '네트워크 수신', unit: 'MB/s' },
   txMBps: { label: '네트워크 송신', unit: 'MB/s' },
-  rps: { label: '요청 수 (RPS)', unit: 'req/s' },
+  rps: { label: '초당 요청 수 (RPS)', unit: 'req/s' },
   avgMs: { label: '평균 응답시간', unit: 'ms' },
   latencyMs: { label: '지연시간', unit: 'ms' },
   errorRate: { label: '오류율', unit: '%' },
