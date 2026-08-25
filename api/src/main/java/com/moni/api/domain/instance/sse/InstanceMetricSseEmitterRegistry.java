@@ -27,7 +27,22 @@ public class InstanceMetricSseEmitterRegistry {
         emitter.onTimeout(() -> remove(instanceId, emitter));
         emitter.onError(e -> remove(instanceId, emitter));
 
+        sendInitEvent(instanceId, emitter);
+
         return emitter;
+    }
+
+    private void sendInitEvent(Long instanceId, SseEmitter emitter) {
+        try {
+            synchronized (emitter) {
+                emitter.send(SseEmitter.event()
+                        .name("connect")
+                        .data("인스턴스(Instance) 실시간 SSE 스트림 연결 성공 (instanceId: " + instanceId + ")"));
+            }
+        } catch (Exception e) {
+            log.warn("인스턴스 SSE 초기 연결 이벤트 전송 실패 (instanceId: {}, error: {})", instanceId, e.getMessage());
+            remove(instanceId, emitter);
+        }
     }
 
     public void broadcast(Long instanceId, Object data) {
