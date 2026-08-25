@@ -105,6 +105,7 @@ export default function HttpApiTab({
                   fill="#5b7fa6"
                   fillOpacity={0.12}
                   dot={false}
+                  connectNulls={true}
                   activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }}
                 />
                 <Line
@@ -116,6 +117,7 @@ export default function HttpApiTab({
                   strokeWidth={2}
                   strokeDasharray="4 3"
                   dot={false}
+                  connectNulls={true}
                   activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }}
                 />
               </ComposedChart>
@@ -156,7 +158,7 @@ export default function HttpApiTab({
                       </div>
                     </div>
                     <div className={`rounded px-2 py-1.5 text-center border ${selErrorTone === 'danger' ? 'bg-danger-50 border-danger-200' : selErrorTone === 'warn' ? 'bg-warn-50 border-warn-200' : 'bg-white border-slate-200/80'}`}>
-                      <div className="text-[10px] text-slate-500">에러율</div>
+                      <div className="text-[10px] text-slate-500">오류율</div>
                       <div className={`text-xs font-bold ${selErrorTone === 'danger' ? 'text-danger-600' : selErrorTone === 'warn' ? 'text-warn-600' : 'text-slate-900'}`}>
                         {selected.errorRatePct}%
                       </div>
@@ -174,113 +176,122 @@ export default function HttpApiTab({
           {/* 엔드포인트 비교 바 차트 & 목록 통합 카드 */}
           <Card className="flex-1 p-4 flex flex-col min-h-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
             {/* 1. 상단: 타이틀 & 지표 선택 세그먼트 */}
-            <div className="mb-2 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-1.5">
-                <h3 className="text-sm font-semibold text-slate-800">
-                  엔드포인트별 지표 비교
-                </h3>
-                <span className="text-xs text-slate-400 font-normal">
-                  ({endpoints.length}개 API)
-                </span>
-              </div>
+            {(() => {
+              const TOP_N_LIMIT = 7
+              const sortedEndpoints = [...endpoints].sort((a, b) =>
+                chartMetric === 'rps' ? b.rps - a.rps : b.avgLatencyMs - a.avgLatencyMs
+              )
+              const chartEndpoints = sortedEndpoints.slice(0, TOP_N_LIMIT)
 
-              {/* RPS / 응답시간 토글 */}
-              <div className="flex rounded-md border border-slate-200 bg-slate-100 p-0.5 text-[11px] font-semibold">
-                <button
-                  type="button"
-                  onClick={() => setChartMetric('rps')}
-                  className={`rounded px-2 py-0.5 transition-all ${
-                    chartMetric === 'rps'
-                      ? 'bg-white text-brand-700 shadow-2xs font-bold'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  RPS
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setChartMetric('latency')}
-                  className={`rounded px-2 py-0.5 transition-all ${
-                    chartMetric === 'latency'
-                      ? 'bg-white text-amber-700 shadow-2xs font-bold'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  응답시간
-                </button>
-              </div>
-            </div>
+              return (
+                <>
+                  <div className="mb-2 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="text-sm font-semibold text-slate-800">
+                        엔드포인트별 지표 비교
+                      </h3>
+                      <span className="text-xs text-slate-400 font-normal">
+                        ({endpoints.length > TOP_N_LIMIT ? `상위 ${chartEndpoints.length}개 / 전체 ${endpoints.length}개` : `${endpoints.length}개 API`})
+                      </span>
+                    </div>
 
-            {endpoints.length === 0 ? (
-              <p className="text-sm text-slate-400 my-auto text-center">수집된 엔드포인트 데이터가 없습니다.</p>
-            ) : (
-              <>
-                {/* 2. 슬림 & 세련된 세로 막대그래프 (가로 나열) */}
-                <div className="h-28 w-full shrink-0 pt-1 pb-1">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={endpoints.map((ep) => {
-                        const pathOnly = ep.uri.startsWith('/') ? ep.uri.slice(1) : ep.uri
-                        const shortUri = pathOnly.length > 14 ? pathOnly.slice(0, 12) + '…' : pathOnly
-                        return {
-                          name: `${ep.method} ${ep.uri}`,
-                          label: `${ep.method} /${shortUri}`,
-                          uri: ep.uri,
-                          method: ep.method,
-                          rps: Number(ep.rps.toFixed(1)),
-                          latencyMs: Number(ep.avgLatencyMs.toFixed(0)),
-                        }
-                      })}
-                      margin={{ top: 4, right: 8, left: -15, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis
-                        dataKey="label"
-                        tick={{ fontSize: 9, fill: '#94a3b8' }}
-                        tickLine={false}
-                        axisLine={{ stroke: '#e2e8f0' }}
-                        interval={0}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 9, fill: '#94a3b8' }}
-                        tickLine={false}
-                        axisLine={false}
-                        width={35}
-                      />
-                      <Tooltip
-                        content={
-                          <CustomChartTooltip
-                            unit={chartMetric === 'rps' ? 'req/s' : 'ms'}
-                          />
-                        }
-                      />
-                      <Bar
-                        dataKey={chartMetric === 'rps' ? 'rps' : 'latencyMs'}
-                        name={chartMetric === 'rps' ? '초당 요청 수 (RPS)' : '평균 응답시간'}
-                        barSize={18}
-                        radius={[3, 3, 0, 0]}
-                        onClick={(data: any) => {
-                          if (data && data.uri) setSelectedUri(data.uri)
-                        }}
-                        className="cursor-pointer"
+                    {/* RPS / 응답시간 토글 */}
+                    <div className="flex rounded-md border border-slate-200 bg-slate-100 p-0.5 text-[11px] font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => setChartMetric('rps')}
+                        className={`rounded px-2 py-0.5 transition-all ${
+                          chartMetric === 'rps'
+                            ? 'bg-white text-brand-700 shadow-2xs font-bold'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
                       >
-                        {endpoints.map((ep) => {
-                          const isSelected = selected?.uri === ep.uri
-                          const activeColor = chartMetric === 'rps' ? '#3b82f6' : '#f59e0b'
-                          const defaultColor = chartMetric === 'rps' ? '#bfdbfe' : '#fef3c7'
-                          return (
-                            <Cell
-                              key={ep.uri}
-                              fill={isSelected ? activeColor : defaultColor}
-                              stroke={isSelected ? activeColor : undefined}
-                              strokeWidth={isSelected ? 1.5 : 0}
+                        RPS
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setChartMetric('latency')}
+                        className={`rounded px-2 py-0.5 transition-all ${
+                          chartMetric === 'latency'
+                            ? 'bg-white text-amber-700 shadow-2xs font-bold'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        응답시간
+                      </button>
+                    </div>
+                  </div>
+
+                  {endpoints.length === 0 ? (
+                    <p className="text-sm text-slate-400 my-auto text-center">수집된 엔드포인트 데이터가 없습니다.</p>
+                  ) : (
+                    <>
+                      {/* 2. 슬림 & 세련된 세로 막대그래프 (상위 Top N) */}
+                      <div className="h-28 w-full shrink-0 pt-1 pb-1">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={chartEndpoints.map((ep) => {
+                              const pathOnly = ep.uri.startsWith('/') ? ep.uri.slice(1) : ep.uri
+                              const shortUri = pathOnly.length > 14 ? pathOnly.slice(0, 12) + '…' : pathOnly
+                              return {
+                                name: `${ep.method} ${ep.uri}`,
+                                label: `${ep.method} /${shortUri}`,
+                                uri: ep.uri,
+                                method: ep.method,
+                                rps: Number(ep.rps.toFixed(1)),
+                                latencyMs: Number(ep.avgLatencyMs.toFixed(0)),
+                              }
+                            })}
+                            margin={{ top: 4, right: 8, left: -15, bottom: 0 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis
+                              dataKey="label"
+                              tick={{ fontSize: 9, fill: '#94a3b8' }}
+                              tickLine={false}
+                              axisLine={{ stroke: '#e2e8f0' }}
+                              interval={0}
                             />
-                          )
-                        })}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                            <YAxis
+                              tick={{ fontSize: 9, fill: '#94a3b8' }}
+                              tickLine={false}
+                              axisLine={false}
+                              width={35}
+                            />
+                            <Tooltip
+                              content={
+                                <CustomChartTooltip
+                                  unit={chartMetric === 'rps' ? 'req/s' : 'ms'}
+                                />
+                              }
+                            />
+                            <Bar
+                              dataKey={chartMetric === 'rps' ? 'rps' : 'latencyMs'}
+                              name={chartMetric === 'rps' ? '초당 요청 수 (RPS)' : '평균 응답시간'}
+                              barSize={18}
+                              radius={[3, 3, 0, 0]}
+                              onClick={(data: any) => {
+                                if (data && data.uri) setSelectedUri(data.uri)
+                              }}
+                              className="cursor-pointer"
+                            >
+                              {chartEndpoints.map((ep) => {
+                                const isSelected = selected?.uri === ep.uri
+                                const activeColor = chartMetric === 'rps' ? '#3b82f6' : '#f59e0b'
+                                const defaultColor = chartMetric === 'rps' ? '#bfdbfe' : '#fef3c7'
+                                return (
+                                  <Cell
+                                    key={ep.uri}
+                                    fill={isSelected ? activeColor : defaultColor}
+                                    stroke={isSelected ? activeColor : undefined}
+                                    strokeWidth={isSelected ? 1.5 : 0}
+                                  />
+                                )
+                              })}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
 
                 {/* 3. 구분선 및 상세 테이블 목록 */}
                 <div className="mt-2 pt-2 border-t border-slate-100 flex-1 flex flex-col min-h-0">
@@ -346,7 +357,10 @@ export default function HttpApiTab({
                 </div>
               </>
             )}
-          </Card>
+            </>
+          )
+        })()}
+      </Card>
         </div>
       </div>
     </div>

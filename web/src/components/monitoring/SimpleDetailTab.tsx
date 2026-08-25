@@ -58,6 +58,7 @@ export default function SimpleDetailTab<T extends { time: string }>({
               strokeWidth={2}
               fill={`url(#grad-detail-${key})`}
               dot={false}
+              connectNulls={true}
               activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }}
               isAnimationActive
               animationDuration={600}

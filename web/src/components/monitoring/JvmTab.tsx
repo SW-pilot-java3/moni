@@ -144,6 +144,7 @@ export default function JvmTab({
                   strokeWidth={2}
                   fill="url(#grad-heap)"
                   dot={false}
+                  connectNulls={true}
                   activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }}
                 />
                 <Area
@@ -154,6 +155,7 @@ export default function JvmTab({
                   strokeWidth={2}
                   fill="url(#grad-oldgen)"
                   dot={false}
+                  connectNulls={true}
                   activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }}
                 />
               </AreaChart>
@@ -171,7 +173,7 @@ export default function JvmTab({
               <ComposedChart data={memoryTimeline} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} interval="preserveStartEnd" minTickGap={45} />
-                <YAxis yAxisId="threads" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={36} />
+                <YAxis yAxisId="threads" tick={{ fontSize: 10, fill: '#94a3b8' }} allowDecimals={false} tickLine={false} axisLine={false} width={36} />
                 <YAxis yAxisId="gc" orientation="right" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={40} />
                 <Tooltip content={<CustomChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -185,6 +187,7 @@ export default function JvmTab({
                   fill="#5b7fa6"
                   fillOpacity={0.12}
                   dot={false}
+                  connectNulls={true}
                   activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }}
                 />
                 <Line
@@ -196,6 +199,7 @@ export default function JvmTab({
                   strokeWidth={2}
                   strokeDasharray="4 3"
                   dot={false}
+                  connectNulls={true}
                   activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }}
                 />
               </ComposedChart>

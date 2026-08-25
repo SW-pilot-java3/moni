@@ -97,8 +97,9 @@ export default function MiniAreaCard<T extends { time: string }>({
               stroke={color}
               strokeWidth={2}
               fill={`url(#grad-${key})`}
-              dot={false}
+              dot={data.length === 1 ? { r: 3, fill: color } : false}
               activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }}
+              connectNulls={true}
               isAnimationActive
               animationDuration={600}
               animationEasing="ease-out"
