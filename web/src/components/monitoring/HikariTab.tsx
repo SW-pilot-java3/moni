@@ -14,7 +14,7 @@ import {
 } from 'recharts'
 import Card from '../ui/Card'
 import CustomChartTooltip from './CustomChartTooltip'
-import { getTone, DEFAULT_THRESHOLDS } from '../../lib/thresholdUtils'
+import { getTone, DEFAULT_THRESHOLDS, formatCount } from '../../lib/thresholdUtils'
 import type { HikariCpPoolMetric, ServerRealtimeSeriesPoint } from '../../lib/servers'
 
 function shortTime(iso: string) {
@@ -61,7 +61,7 @@ export default function HikariTab({
         <Card className="p-3">
           <div className="text-[11px] text-slate-500">Active 활성 커넥션</div>
           <div className={`mt-0.5 text-xl font-bold ${activeTone === 'danger' ? 'text-danger-600' : activeTone === 'warn' ? 'text-warn-600' : 'text-slate-900'}`}>
-            {totalActive} <span className="text-xs font-normal text-slate-400">/ {totalMax}</span>
+            {formatCount(totalActive)} <span className="text-xs font-normal text-slate-400">/ {totalMax}</span>
           </div>
           <div className="mt-0.5 text-[10px] text-slate-400">풀 사용률 {usagePct}%</div>
         </Card>
@@ -69,7 +69,7 @@ export default function HikariTab({
         <Card className="p-3">
           <div className="text-[11px] text-slate-500">Idle 유휴 커넥션</div>
           <div className="mt-0.5 text-xl font-bold text-slate-900">
-            {totalIdle} <span className="text-xs font-normal text-slate-400">개</span>
+            {formatCount(totalIdle)} <span className="text-xs font-normal text-slate-400">개</span>
           </div>
           <div className="mt-0.5 text-[10px] text-slate-400">대기 중인 풀 커넥션</div>
         </Card>
@@ -77,7 +77,7 @@ export default function HikariTab({
         <Card className="p-3">
           <div className="text-[11px] text-slate-500">Pending 대기 요청</div>
           <div className={`mt-0.5 text-xl font-bold ${pendingTone === 'warn' ? 'text-warn-600 font-bold' : 'text-slate-900'}`}>
-            {totalPending} <span className="text-xs font-normal text-slate-400">개</span>
+            {formatCount(totalPending)} <span className="text-xs font-normal text-slate-400">개</span>
           </div>
           <div className="mt-0.5 text-[10px] text-slate-400">커넥션 획득 대기 스레드</div>
         </Card>
@@ -290,15 +290,15 @@ export default function HikariTab({
                             <td className={`py-1.5 px-2 whitespace-nowrap text-xs text-right font-mono border-r border-slate-100/80 ${
                               poolTone === 'danger' ? 'text-danger-600 font-bold' : poolTone === 'warn' ? 'text-warn-600 font-bold' : 'text-slate-800'
                             }`}>
-                              {p.active} <span className="text-[10px] text-slate-400">/{p.max}</span>
+                              {formatCount(p.active)} <span className="text-[10px] text-slate-400">/{p.max}</span>
                             </td>
                             <td className="py-1.5 px-2 whitespace-nowrap text-xs text-slate-600 text-right font-mono border-r border-slate-100/80">
-                              {p.idle}
+                              {formatCount(p.idle)}
                             </td>
                             <td className={`py-1.5 px-2 whitespace-nowrap text-xs text-right font-mono border-r border-slate-100/80 ${
                               p.pending > 0 ? 'text-warn-600 font-bold' : 'text-slate-600'
                             }`}>
-                              {p.pending}
+                              {formatCount(p.pending)}
                             </td>
                             <td className="py-1.5 px-2 whitespace-nowrap text-xs text-slate-700 text-right font-mono border-r border-slate-100/80">
                               {poolUsage}%

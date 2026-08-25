@@ -14,7 +14,7 @@ import {
 } from 'recharts'
 import Card from '../ui/Card'
 import CustomChartTooltip from './CustomChartTooltip'
-import { getTone, DEFAULT_THRESHOLDS } from '../../lib/thresholdUtils'
+import { getTone, DEFAULT_THRESHOLDS, formatCount } from '../../lib/thresholdUtils'
 import type { ExecutorMetric, ServerRealtimeSeriesPoint } from '../../lib/servers'
 
 function shortTime(iso: string) {
@@ -64,7 +64,7 @@ export default function ThreadPoolTab({
         <Card className="p-3">
           <div className="text-[11px] text-slate-500">Active 활성 스레드</div>
           <div className={`mt-0.5 text-xl font-bold ${activeTone === 'danger' ? 'text-danger-600' : activeTone === 'warn' ? 'text-warn-600' : 'text-slate-900'}`}>
-            {totalActive} <span className="text-xs font-normal text-slate-400">/ {totalMaxLabel}</span>
+            {formatCount(totalActive)} <span className="text-xs font-normal text-slate-400">/ {totalMaxLabel}</span>
           </div>
           <div className="mt-0.5 text-[10px] text-slate-400">현재 작업 처리 중</div>
         </Card>
@@ -72,7 +72,7 @@ export default function ThreadPoolTab({
         <Card className="p-3">
           <div className="text-[11px] text-slate-500">Queued 대기 작업</div>
           <div className={`mt-0.5 text-xl font-bold ${queuedTone === 'danger' ? 'text-danger-600' : queuedTone === 'warn' ? 'text-warn-600' : 'text-slate-900'}`}>
-            {totalQueued} <span className="text-xs font-normal text-slate-400">건</span>
+            {formatCount(totalQueued)} <span className="text-xs font-normal text-slate-400">건</span>
           </div>
           <div className="mt-0.5 text-[10px] text-slate-400">스레드 풀 큐 대기 건수</div>
         </Card>
@@ -295,7 +295,7 @@ export default function ThreadPoolTab({
                             <td className={`py-1.5 px-2 whitespace-nowrap text-xs text-right font-mono border-r border-slate-100/80 ${
                               threadTone === 'danger' ? 'text-danger-600 font-bold' : threadTone === 'warn' ? 'text-warn-600 font-bold' : 'text-slate-800'
                             }`}>
-                              {e.active}
+                              {formatCount(e.active)}
                             </td>
                             <td className="py-1.5 px-2 whitespace-nowrap text-xs text-slate-700 text-right font-mono border-r border-slate-100/80">
                               {maxLabel}
@@ -303,7 +303,7 @@ export default function ThreadPoolTab({
                             <td className={`py-1.5 px-2 whitespace-nowrap text-xs text-right font-mono border-r border-slate-100/80 ${
                               queueTone === 'danger' ? 'text-danger-600 font-bold' : queueTone === 'warn' ? 'text-warn-600 font-bold' : 'text-slate-600'
                             }`}>
-                              {e.queuedTasks}
+                              {formatCount(e.queuedTasks)}
                             </td>
                             <td className="py-1.5 px-2 whitespace-nowrap text-xs text-slate-700 text-right font-mono border-r border-slate-100/80">
                               {remLabel}
