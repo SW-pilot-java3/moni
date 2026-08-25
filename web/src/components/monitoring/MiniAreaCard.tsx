@@ -87,7 +87,7 @@ export default function MiniAreaCard<T extends { time: string }>({
               axisLine={{ stroke: '#e2e8f0' }}
               tickLine={false}
               interval="preserveStartEnd"
-              minTickGap={45}
+              minTickGap={20}
             />
             <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={40} />
             <Tooltip content={<CustomChartTooltip />} />
