@@ -143,7 +143,9 @@ export default function AppDetailView({ server }: { server: ServerItem }) {
           series: [...(prev?.series ?? []), toSeriesPoint(event)].slice(-MAX_SERIES_POINTS),
         }))
       },
-      undefined,
+      () => {
+        setStreamStatus('connected')
+      },
       () => {
         setStreamStatus('disconnected')
       },
