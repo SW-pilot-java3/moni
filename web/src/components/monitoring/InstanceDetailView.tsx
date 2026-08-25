@@ -391,7 +391,7 @@ export default function InstanceDetailView({
                     { label: '읽기', value: latest ? formatBytesPerSec(latest.diskReadBytesPerSec) : '—' },
                     { label: '쓰기', value: latest ? formatBytesPerSec(latest.diskWriteBytesPerSec) : '—' },
                     {
-                      label: 'Utilization',
+                      label: '디스크 점유율',
                       value: latest?.diskUtilizationPct !== null && latest ? `${latest.diskUtilizationPct?.toFixed(1)}%` : '—',
                       tone: getTone(latest?.diskUtilizationPct, DEFAULT_THRESHOLDS.DISK_USAGE.warn, DEFAULT_THRESHOLDS.DISK_USAGE.crit),
                     },
@@ -426,7 +426,7 @@ export default function InstanceDetailView({
                     { label: 'RX', value: latest ? formatBytesPerSec(latest.netRxBytesPerSec) : '—' },
                     { label: 'TX', value: latest ? formatBytesPerSec(latest.netTxBytesPerSec) : '—' },
                     {
-                      label: '에러율',
+                      label: '초당 에러',
                       value: latest?.netErrorsPerSec !== null && latest ? `${latest.netErrorsPerSec?.toFixed(2)}/s` : '—',
                     },
                   ]
