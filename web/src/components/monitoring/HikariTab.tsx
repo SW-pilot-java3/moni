@@ -14,7 +14,7 @@ import {
 } from 'recharts'
 import Card from '../ui/Card'
 import CustomChartTooltip from './CustomChartTooltip'
-import { getTone, DEFAULT_THRESHOLDS } from '../../lib/thresholdUtils'
+import { getTone, DEFAULT_THRESHOLDS, formatCount } from '../../lib/thresholdUtils'
 import type { HikariCpPoolMetric, ServerRealtimeSeriesPoint } from '../../lib/servers'
 
 function shortTime(iso: string) {
@@ -61,7 +61,7 @@ export default function HikariTab({
         <Card className="p-3">
           <div className="text-[11px] text-slate-500">Active 활성 커넥션</div>
           <div className={`mt-0.5 text-xl font-bold ${activeTone === 'danger' ? 'text-danger-600' : activeTone === 'warn' ? 'text-warn-600' : 'text-slate-900'}`}>
-            {totalActive} <span className="text-xs font-normal text-slate-400">/ {totalMax}</span>
+            {formatCount(totalActive)} <span className="text-xs font-normal text-slate-400">/ {totalMax}</span>
           </div>
           <div className="mt-0.5 text-[10px] text-slate-400">풀 사용률 {usagePct}%</div>
         </Card>
@@ -69,7 +69,7 @@ export default function HikariTab({
         <Card className="p-3">
           <div className="text-[11px] text-slate-500">Idle 유휴 커넥션</div>
           <div className="mt-0.5 text-xl font-bold text-slate-900">
-            {totalIdle} <span className="text-xs font-normal text-slate-400">개</span>
+            {formatCount(totalIdle)} <span className="text-xs font-normal text-slate-400">개</span>
           </div>
           <div className="mt-0.5 text-[10px] text-slate-400">대기 중인 풀 커넥션</div>
         </Card>
@@ -77,7 +77,7 @@ export default function HikariTab({
         <Card className="p-3">
           <div className="text-[11px] text-slate-500">Pending 대기 요청</div>
           <div className={`mt-0.5 text-xl font-bold ${pendingTone === 'warn' ? 'text-warn-600 font-bold' : 'text-slate-900'}`}>
-            {totalPending} <span className="text-xs font-normal text-slate-400">개</span>
+            {formatCount(totalPending)} <span className="text-xs font-normal text-slate-400">개</span>
           </div>
           <div className="mt-0.5 text-[10px] text-slate-400">커넥션 획득 대기 스레드</div>
         </Card>
@@ -109,7 +109,7 @@ export default function HikariTab({
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} interval="preserveStartEnd" minTickGap={45} />
-                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={40} />
+                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} allowDecimals={false} tickLine={false} axisLine={false} width={40} />
                 <Tooltip content={<CustomChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Area
@@ -120,6 +120,7 @@ export default function HikariTab({
                   strokeWidth={2}
                   fill="url(#grad-hikari)"
                   dot={false}
+                  connectNulls={true}
                   activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }}
                 />
               </AreaChart>
@@ -129,114 +130,128 @@ export default function HikariTab({
 
         {/* 우측: DB 커넥션 풀 비교 바 차트 & 목록 통합 카드 */}
         <Card className="lg:col-span-5 p-4 flex flex-col flex-1 min-h-0 h-full overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-          {/* 1. 상단: 타이틀 & 지표 선택 세그먼트 */}
-          <div className="mb-2 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-1.5">
-              <h3 className="text-sm font-semibold text-slate-800">
-                커넥션 풀별 부하 비교
-              </h3>
-              <span className="text-xs text-slate-400 font-normal">
-                ({pools.length}개 풀)
-              </span>
-            </div>
+          {(() => {
+            const TOP_N_LIMIT = 6
+            const sortedPools = [...pools].sort((a, b) => {
+              if (chartMetric === 'usage') {
+                const aUsage = a.max > 0 ? a.active / a.max : 0
+                const bUsage = b.max > 0 ? b.active / b.max : 0
+                return bUsage - aUsage
+              }
+              return b.active - a.active
+            })
+            const chartPools = sortedPools.slice(0, TOP_N_LIMIT)
 
-            {/* 사용률 / 활성 커넥션 토글 */}
-            <div className="flex rounded-md border border-slate-200 bg-slate-100 p-0.5 text-[11px] font-semibold">
-              <button
-                type="button"
-                onClick={() => setChartMetric('usage')}
-                className={`rounded px-2 py-0.5 transition-all ${
-                  chartMetric === 'usage'
-                    ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                사용률(%)
-              </button>
-              <button
-                type="button"
-                onClick={() => setChartMetric('active')}
-                className={`rounded px-2 py-0.5 transition-all ${
-                  chartMetric === 'active'
-                    ? 'bg-white text-brand-700 shadow-2xs font-bold'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                활성 수
-              </button>
-            </div>
-          </div>
+            return (
+              <>
+                {/* 1. 상단: 타이틀 & 지표 선택 세그먼트 */}
+                <div className="mb-2 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-sm font-semibold text-slate-800">
+                      커넥션 풀별 부하 비교
+                    </h3>
+                    <span className="text-xs text-slate-400 font-normal">
+                      ({pools.length > TOP_N_LIMIT ? `상위 ${chartPools.length}개 / 전체 ${pools.length}개` : `${pools.length}개 풀`})
+                    </span>
+                  </div>
 
-          {pools.length === 0 ? (
-            <p className="text-sm text-slate-400 my-auto text-center">수집된 커넥션 풀 데이터가 없습니다.</p>
-          ) : (
-            <>
-              {/* 2. 슬림 & 세련된 풀별 세로 막대그래프 */}
-              <div className="h-28 w-full shrink-0 pt-1 pb-1">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={pools.map((p) => {
-                      const poolUsage = p.max > 0 ? Number(((p.active / p.max) * 100).toFixed(1)) : 0
-                      const shortName = p.poolName.length > 14 ? p.poolName.slice(0, 12) + '…' : p.poolName
-                      return {
-                        name: p.poolName,
-                        label: shortName,
-                        poolName: p.poolName,
-                        active: p.active,
-                        max: p.max,
-                        usagePct: poolUsage,
-                      }
-                    })}
-                    margin={{ top: 4, right: 8, left: -15, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 9, fill: '#94a3b8' }}
-                      tickLine={false}
-                      axisLine={{ stroke: '#e2e8f0' }}
-                      interval={0}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 9, fill: '#94a3b8' }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={35}
-                    />
-                    <Tooltip
-                      content={
-                        <CustomChartTooltip
-                          unit={chartMetric === 'usage' ? '%' : '개'}
-                        />
-                      }
-                    />
-                    <Bar
-                      dataKey={chartMetric === 'usage' ? 'usagePct' : 'active'}
-                      name={chartMetric === 'usage' ? '풀 사용률' : '활성 커넥션'}
-                      barSize={18}
-                      radius={[3, 3, 0, 0]}
-                      onClick={(data: any) => {
-                        if (data && data.poolName) setSelectedPoolName(data.poolName)
-                      }}
-                      className="cursor-pointer"
+                  {/* 사용률 / 활성 커넥션 토글 */}
+                  <div className="flex rounded-md border border-slate-200 bg-slate-100 p-0.5 text-[11px] font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setChartMetric('usage')}
+                      className={`rounded px-2 py-0.5 transition-all ${
+                        chartMetric === 'usage'
+                          ? 'bg-white text-emerald-700 shadow-2xs font-bold'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
                     >
-                      {pools.map((p) => {
-                        const isSelected = selected?.poolName === p.poolName
-                        const activeColor = chartMetric === 'usage' ? '#10b981' : '#3b82f6'
-                        const defaultColor = chartMetric === 'usage' ? '#a7f3d0' : '#bfdbfe'
-                        return (
-                          <Cell
-                            key={p.poolName}
-                            fill={isSelected ? activeColor : defaultColor}
-                            stroke={isSelected ? activeColor : undefined}
-                            strokeWidth={isSelected ? 1.5 : 0}
+                      사용률(%)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChartMetric('active')}
+                      className={`rounded px-2 py-0.5 transition-all ${
+                        chartMetric === 'active'
+                          ? 'bg-white text-brand-700 shadow-2xs font-bold'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      활성 수
+                    </button>
+                  </div>
+                </div>
+
+                {pools.length === 0 ? (
+                  <p className="text-sm text-slate-400 my-auto text-center">수집된 커넥션 풀 데이터가 없습니다.</p>
+                ) : (
+                  <>
+                    {/* 2. 슬림 & 세련된 풀별 세로 막대그래프 (상위 Top N) */}
+                    <div className="h-28 w-full shrink-0 pt-1 pb-1">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={chartPools.map((p) => {
+                            const poolUsage = p.max > 0 ? Number(((p.active / p.max) * 100).toFixed(1)) : 0
+                            const shortName = p.poolName.length > 14 ? p.poolName.slice(0, 12) + '…' : p.poolName
+                            return {
+                              name: p.poolName,
+                              label: shortName,
+                              poolName: p.poolName,
+                              active: p.active,
+                              max: p.max,
+                              usagePct: poolUsage,
+                            }
+                          })}
+                          margin={{ top: 4, right: 8, left: -15, bottom: 0 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fontSize: 9, fill: '#94a3b8' }}
+                            tickLine={false}
+                            axisLine={{ stroke: '#e2e8f0' }}
+                            interval={0}
                           />
-                        )
-                      })}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+                          <YAxis
+                            tick={{ fontSize: 9, fill: '#94a3b8' }}
+                            tickLine={false}
+                            axisLine={false}
+                            width={35}
+                          />
+                          <Tooltip
+                            content={
+                              <CustomChartTooltip
+                                unit={chartMetric === 'usage' ? '%' : '개'}
+                              />
+                            }
+                          />
+                          <Bar
+                            dataKey={chartMetric === 'usage' ? 'usagePct' : 'active'}
+                            name={chartMetric === 'usage' ? '풀 사용률' : '활성 커넥션'}
+                            barSize={18}
+                            radius={[3, 3, 0, 0]}
+                            onClick={(data: any) => {
+                              if (data && data.poolName) setSelectedPoolName(data.poolName)
+                            }}
+                            className="cursor-pointer"
+                          >
+                            {chartPools.map((p) => {
+                              const isSelected = selected?.poolName === p.poolName
+                              const activeColor = chartMetric === 'usage' ? '#10b981' : '#3b82f6'
+                              const defaultColor = chartMetric === 'usage' ? '#a7f3d0' : '#bfdbfe'
+                              return (
+                                <Cell
+                                  key={p.poolName}
+                                  fill={isSelected ? activeColor : defaultColor}
+                                  stroke={isSelected ? activeColor : undefined}
+                                  strokeWidth={isSelected ? 1.5 : 0}
+                                />
+                              )
+                            })}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
 
               {/* 3. 구분선 및 풀 상세 목록 테이블 */}
               <div className="mt-2 pt-2 border-t border-slate-100 flex-1 flex flex-col min-h-0">
@@ -275,15 +290,15 @@ export default function HikariTab({
                             <td className={`py-1.5 px-2 whitespace-nowrap text-xs text-right font-mono border-r border-slate-100/80 ${
                               poolTone === 'danger' ? 'text-danger-600 font-bold' : poolTone === 'warn' ? 'text-warn-600 font-bold' : 'text-slate-800'
                             }`}>
-                              {p.active} <span className="text-[10px] text-slate-400">/{p.max}</span>
+                              {formatCount(p.active)} <span className="text-[10px] text-slate-400">/{p.max}</span>
                             </td>
                             <td className="py-1.5 px-2 whitespace-nowrap text-xs text-slate-600 text-right font-mono border-r border-slate-100/80">
-                              {p.idle}
+                              {formatCount(p.idle)}
                             </td>
                             <td className={`py-1.5 px-2 whitespace-nowrap text-xs text-right font-mono border-r border-slate-100/80 ${
                               p.pending > 0 ? 'text-warn-600 font-bold' : 'text-slate-600'
                             }`}>
-                              {p.pending}
+                              {formatCount(p.pending)}
                             </td>
                             <td className="py-1.5 px-2 whitespace-nowrap text-xs text-slate-700 text-right font-mono border-r border-slate-100/80">
                               {poolUsage}%
@@ -310,7 +325,10 @@ export default function HikariTab({
               </div>
             </>
           )}
-        </Card>
+          </>
+        )
+      })()}
+    </Card>
       </div>
     </div>
   )

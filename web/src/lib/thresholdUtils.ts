@@ -33,3 +33,14 @@ export const DEFAULT_THRESHOLDS = {
   DISK_LATENCY: { warn: 20.0, crit: 50.0 },       // ms
   NET_ERROR_RATE: { warn: 1.0, crit: 5.0 },       // %
 } as const
+
+/**
+ * 정수는 그대로, 소수점이 있는 평균 수치는 최대 1자리까지 깔끔하게 포맷팅합니다.
+ * 예: 21.099999999999998 -> "21.1", 21 -> "21"
+ */
+export function formatCount(val: number | null | undefined): string {
+  if (val === null || val === undefined || isNaN(val)) return '—'
+  return Number.isInteger(val) ? String(val) : Number(val.toFixed(1)).toString()
+}
+
+

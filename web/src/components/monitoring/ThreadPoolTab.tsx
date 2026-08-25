@@ -14,7 +14,7 @@ import {
 } from 'recharts'
 import Card from '../ui/Card'
 import CustomChartTooltip from './CustomChartTooltip'
-import { getTone, DEFAULT_THRESHOLDS } from '../../lib/thresholdUtils'
+import { getTone, DEFAULT_THRESHOLDS, formatCount } from '../../lib/thresholdUtils'
 import type { ExecutorMetric, ServerRealtimeSeriesPoint } from '../../lib/servers'
 
 function shortTime(iso: string) {
@@ -64,7 +64,7 @@ export default function ThreadPoolTab({
         <Card className="p-3">
           <div className="text-[11px] text-slate-500">Active 활성 스레드</div>
           <div className={`mt-0.5 text-xl font-bold ${activeTone === 'danger' ? 'text-danger-600' : activeTone === 'warn' ? 'text-warn-600' : 'text-slate-900'}`}>
-            {totalActive} <span className="text-xs font-normal text-slate-400">/ {totalMaxLabel}</span>
+            {formatCount(totalActive)} <span className="text-xs font-normal text-slate-400">/ {totalMaxLabel}</span>
           </div>
           <div className="mt-0.5 text-[10px] text-slate-400">현재 작업 처리 중</div>
         </Card>
@@ -72,7 +72,7 @@ export default function ThreadPoolTab({
         <Card className="p-3">
           <div className="text-[11px] text-slate-500">Queued 대기 작업</div>
           <div className={`mt-0.5 text-xl font-bold ${queuedTone === 'danger' ? 'text-danger-600' : queuedTone === 'warn' ? 'text-warn-600' : 'text-slate-900'}`}>
-            {totalQueued} <span className="text-xs font-normal text-slate-400">건</span>
+            {formatCount(totalQueued)} <span className="text-xs font-normal text-slate-400">건</span>
           </div>
           <div className="mt-0.5 text-[10px] text-slate-400">스레드 풀 큐 대기 건수</div>
         </Card>
@@ -112,7 +112,7 @@ export default function ThreadPoolTab({
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} interval="preserveStartEnd" minTickGap={45} />
-                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={40} />
+                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} allowDecimals={false} tickLine={false} axisLine={false} width={40} />
                 <Tooltip content={<CustomChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Area
@@ -123,6 +123,7 @@ export default function ThreadPoolTab({
                   strokeWidth={2}
                   fill="url(#grad-executor)"
                   dot={false}
+                  connectNulls={true}
                   activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }}
                 />
               </AreaChart>
@@ -132,113 +133,125 @@ export default function ThreadPoolTab({
 
         {/* 우측: 스레드 풀 비교 바 차트 & 목록 통합 카드 */}
         <Card className="lg:col-span-5 p-4 flex flex-col flex-1 min-h-0 h-full overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-          {/* 1. 상단: 타이틀 & 지표 선택 세그먼트 */}
-          <div className="mb-2 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-1.5">
-              <h3 className="text-sm font-semibold text-slate-800">
-                스레드 풀별 부하 비교
-              </h3>
-              <span className="text-xs text-slate-400 font-normal">
-                ({executors.length}개 풀)
-              </span>
-            </div>
+          {(() => {
+            const TOP_N_LIMIT = 6
+            const sortedExecutors = [...executors].sort((a, b) => {
+              if (chartMetric === 'active') {
+                return b.active - a.active
+              }
+              return b.queuedTasks - a.queuedTasks
+            })
+            const chartExecutors = sortedExecutors.slice(0, TOP_N_LIMIT)
 
-            {/* 활성 스레드 / 큐 대기 토글 */}
-            <div className="flex rounded-md border border-slate-200 bg-slate-100 p-0.5 text-[11px] font-semibold">
-              <button
-                type="button"
-                onClick={() => setChartMetric('active')}
-                className={`rounded px-2 py-0.5 transition-all ${
-                  chartMetric === 'active'
-                    ? 'bg-white text-amber-700 shadow-2xs font-bold'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                활성 스레드
-              </button>
-              <button
-                type="button"
-                onClick={() => setChartMetric('queued')}
-                className={`rounded px-2 py-0.5 transition-all ${
-                  chartMetric === 'queued'
-                    ? 'bg-white text-rose-700 shadow-2xs font-bold'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                대기 큐
-              </button>
-            </div>
-          </div>
+            return (
+              <>
+                {/* 1. 상단: 타이틀 & 지표 선택 세그먼트 */}
+                <div className="mb-2 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-sm font-semibold text-slate-800">
+                      스레드 풀별 부하 비교
+                    </h3>
+                    <span className="text-xs text-slate-400 font-normal">
+                      ({executors.length > TOP_N_LIMIT ? `상위 ${chartExecutors.length}개 / 전체 ${executors.length}개` : `${executors.length}개 풀`})
+                    </span>
+                  </div>
 
-          {executors.length === 0 ? (
-            <p className="text-sm text-slate-400 my-auto text-center">수집된 ThreadPool 데이터가 없습니다.</p>
-          ) : (
-            <>
-              {/* 2. 슬림 & 세련된 스레드 풀별 세로 막대그래프 */}
-              <div className="h-28 w-full shrink-0 pt-1 pb-1">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={executors.map((e) => {
-                      const isUnbounded = e.max >= UNBOUNDED_THRESHOLD
-                      const shortName = e.name.length > 14 ? e.name.slice(0, 12) + '…' : e.name
-                      return {
-                        name: e.name,
-                        label: shortName,
-                        active: e.active,
-                        queuedTasks: e.queuedTasks,
-                        max: isUnbounded ? 9999 : e.max,
-                      }
-                    })}
-                    margin={{ top: 4, right: 8, left: -15, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 9, fill: '#94a3b8' }}
-                      tickLine={false}
-                      axisLine={{ stroke: '#e2e8f0' }}
-                      interval={0}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 9, fill: '#94a3b8' }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={35}
-                    />
-                    <Tooltip
-                      content={
-                        <CustomChartTooltip
-                          unit={chartMetric === 'active' ? '개' : '건'}
-                        />
-                      }
-                    />
-                    <Bar
-                      dataKey={chartMetric === 'active' ? 'active' : 'queuedTasks'}
-                      name={chartMetric === 'active' ? '활성 스레드' : '큐 대기 작업'}
-                      barSize={18}
-                      radius={[3, 3, 0, 0]}
-                      onClick={(data: any) => {
-                        if (data && data.name) setSelectedExecutorName(data.name)
-                      }}
-                      className="cursor-pointer"
+                  {/* 활성 스레드 / 큐 대기 토글 */}
+                  <div className="flex rounded-md border border-slate-200 bg-slate-100 p-0.5 text-[11px] font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setChartMetric('active')}
+                      className={`rounded px-2 py-0.5 transition-all ${
+                        chartMetric === 'active'
+                          ? 'bg-white text-amber-700 shadow-2xs font-bold'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
                     >
-                      {executors.map((e) => {
-                        const isSelected = selected?.name === e.name
-                        const activeColor = chartMetric === 'active' ? '#f59e0b' : '#f43f5e'
-                        const defaultColor = chartMetric === 'active' ? '#fde68a' : '#fecdd3'
-                        return (
-                          <Cell
-                            key={e.name}
-                            fill={isSelected ? activeColor : defaultColor}
-                            stroke={isSelected ? activeColor : undefined}
-                            strokeWidth={isSelected ? 1.5 : 0}
+                      활성 스레드
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChartMetric('queued')}
+                      className={`rounded px-2 py-0.5 transition-all ${
+                        chartMetric === 'queued'
+                          ? 'bg-white text-rose-700 shadow-2xs font-bold'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      대기 큐
+                    </button>
+                  </div>
+                </div>
+
+                {executors.length === 0 ? (
+                  <p className="text-sm text-slate-400 my-auto text-center">수집된 ThreadPool 데이터가 없습니다.</p>
+                ) : (
+                  <>
+                    {/* 2. 슬림 & 세련된 스레드 풀별 세로 막대그래프 (상위 Top N) */}
+                    <div className="h-28 w-full shrink-0 pt-1 pb-1">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={chartExecutors.map((e) => {
+                            const isUnbounded = e.max >= UNBOUNDED_THRESHOLD
+                            const shortName = e.name.length > 14 ? e.name.slice(0, 12) + '…' : e.name
+                            return {
+                              name: e.name,
+                              label: shortName,
+                              active: e.active,
+                              queuedTasks: e.queuedTasks,
+                              max: isUnbounded ? 9999 : e.max,
+                            }
+                          })}
+                          margin={{ top: 4, right: 8, left: -15, bottom: 0 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fontSize: 9, fill: '#94a3b8' }}
+                            tickLine={false}
+                            axisLine={{ stroke: '#e2e8f0' }}
+                            interval={0}
                           />
-                        )
-                      })}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+                          <YAxis
+                            tick={{ fontSize: 9, fill: '#94a3b8' }}
+                            tickLine={false}
+                            axisLine={false}
+                            width={35}
+                          />
+                          <Tooltip
+                            content={
+                              <CustomChartTooltip
+                                unit={chartMetric === 'active' ? '개' : '건'}
+                              />
+                            }
+                          />
+                          <Bar
+                            dataKey={chartMetric === 'active' ? 'active' : 'queuedTasks'}
+                            name={chartMetric === 'active' ? '활성 스레드' : '큐 대기 작업'}
+                            barSize={18}
+                            radius={[3, 3, 0, 0]}
+                            onClick={(data: any) => {
+                              if (data && data.name) setSelectedExecutorName(data.name)
+                            }}
+                            className="cursor-pointer"
+                          >
+                            {chartExecutors.map((e) => {
+                              const isSelected = selected?.name === e.name
+                              const activeColor = chartMetric === 'active' ? '#f59e0b' : '#f43f5e'
+                              const defaultColor = chartMetric === 'active' ? '#fde68a' : '#fecdd3'
+                              return (
+                                <Cell
+                                  key={e.name}
+                                  fill={isSelected ? activeColor : defaultColor}
+                                  stroke={isSelected ? activeColor : undefined}
+                                  strokeWidth={isSelected ? 1.5 : 0}
+                                />
+                              )
+                            })}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
 
               {/* 3. 구분선 및 스레드 풀 상세 목록 테이블 */}
               <div className="mt-2 pt-2 border-t border-slate-100 flex-1 flex flex-col min-h-0">
@@ -282,7 +295,7 @@ export default function ThreadPoolTab({
                             <td className={`py-1.5 px-2 whitespace-nowrap text-xs text-right font-mono border-r border-slate-100/80 ${
                               threadTone === 'danger' ? 'text-danger-600 font-bold' : threadTone === 'warn' ? 'text-warn-600 font-bold' : 'text-slate-800'
                             }`}>
-                              {e.active}
+                              {formatCount(e.active)}
                             </td>
                             <td className="py-1.5 px-2 whitespace-nowrap text-xs text-slate-700 text-right font-mono border-r border-slate-100/80">
                               {maxLabel}
@@ -290,7 +303,7 @@ export default function ThreadPoolTab({
                             <td className={`py-1.5 px-2 whitespace-nowrap text-xs text-right font-mono border-r border-slate-100/80 ${
                               queueTone === 'danger' ? 'text-danger-600 font-bold' : queueTone === 'warn' ? 'text-warn-600 font-bold' : 'text-slate-600'
                             }`}>
-                              {e.queuedTasks}
+                              {formatCount(e.queuedTasks)}
                             </td>
                             <td className="py-1.5 px-2 whitespace-nowrap text-xs text-slate-700 text-right font-mono border-r border-slate-100/80">
                               {remLabel}
@@ -321,7 +334,10 @@ export default function ThreadPoolTab({
               </div>
             </>
           )}
-        </Card>
+          </>
+        )
+      })()}
+    </Card>
       </div>
     </div>
   )

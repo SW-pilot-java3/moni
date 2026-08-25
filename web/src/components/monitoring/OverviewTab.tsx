@@ -1,5 +1,5 @@
 import MiniAreaCard from './MiniAreaCard'
-import { getTone, DEFAULT_THRESHOLDS } from '../../lib/thresholdUtils'
+import { getTone, DEFAULT_THRESHOLDS, formatCount } from '../../lib/thresholdUtils'
 
 interface TimePoint {
   time: string
@@ -91,11 +91,11 @@ export default function OverviewTab({
         stats={[
           {
             label: 'Active / Max',
-            value: `${hikari.active} / ${hikari.max}`,
+            value: `${formatCount(hikari.active)} / ${hikari.max}`,
             tone: getTone(hikariUsagePct, DEFAULT_THRESHOLDS.HIKARICP_POOL_USAGE.warn, DEFAULT_THRESHOLDS.HIKARICP_POOL_USAGE.crit),
           },
-          { label: 'Idle 유휴', value: `${hikari.idle} 개` },
-          { label: 'Pending 대기', value: `${hikari.pending} 개` },
+          { label: 'Idle 유휴', value: `${formatCount(hikari.idle)} 개` },
+          { label: 'Pending 대기', value: `${formatCount(hikari.pending)} 개` },
         ]}
         data={hikariTimeline}
         dataKey="active"
@@ -108,10 +108,10 @@ export default function OverviewTab({
         stats={[
           {
             label: 'Active 스레드',
-            value: `${threadPool.active} / ${threadPool.max}`,
+            value: `${formatCount(typeof threadPool.active === 'number' ? threadPool.active : parseFloat(String(threadPool.active)))} / ${threadPool.max}`,
             tone: getTone(execUsagePct, DEFAULT_THRESHOLDS.THREADPOOL_QUEUE_USAGE.warn, DEFAULT_THRESHOLDS.THREADPOOL_QUEUE_USAGE.crit),
           },
-          { label: 'Queued 대기', value: `${threadPool.queued} 건` },
+          { label: 'Queued 대기', value: `${formatCount(threadPool.queued)} 건` },
           { label: '남은 용량', value: `${threadPool.remaining} 건` },
         ]}
         data={executorTimeline}
