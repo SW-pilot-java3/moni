@@ -24,7 +24,7 @@
 Moni는 호스트 인스턴스와 Spring Boot 애플리케이션의 상태 지표를 단일 플랫폼에서 모니터링할 수 있도록 지원합니다.
 
 - **Outbound Push 수집**: 타깃 서버에서 중앙 모니터링 서버로 메트릭을 주기적으로 전송하므로, 타깃 서버의 인바운드 방화벽 포트를 열지 않아도 됩니다.
-- **통합 지표 적재**: Spring Boot Actuator/Micrometer 지표(JVM 메모리, GC, 스레드, TPS, 지연시간)와 Node Exporter 지표(CPU, 메모리, 디스크, 네트워크)를 1회 요청에 함께 담아 전송합니다.
+- **통합 지표 적재**: Spring Boot Actuator/Micrometer 지표(JVM 메모리, GC, DB 커넥션 풀, 스레드 풀, RPS, 응답 시간)와 Node Exporter 지표(CPU, 메모리, 디스크, 네트워크)를 1회 요청에 함께 담아 전송합니다.
 - **설정 간소화**: `moni-spring-boot-starter` 라이브러리를 의존성에 추가하고 API Key와 서버 URL을 설정하면 백그라운드 데몬 스레드가 메트릭을 자동 수집 및 전송합니다.
 
 ---
@@ -35,14 +35,14 @@ Moni는 호스트 인스턴스와 Spring Boot 애플리케이션의 상태 지�
 
 ### 데이터 흐름
 1. **모니터링 대상 서버 (Target Host)**
-   - 타깃 서버에 배포된 `moni-spring-boot-starter`가 Spring Boot Actuator(애플리케이션 지표)와 Node Exporter(호스트 OS 지표)를 동시 조회합니다.
+   - 타깃 애플리케이션에 연동된 `moni-spring-boot-starter`가 Spring Boot Actuator(애플리케이션 지표)와 호스트의 Node Exporter(OS 하드웨어 지표)를 함께 조회합니다.
    - 수집된 지표를 주기적으로 Moni 백엔드 서버에 HTTPS POST 방식으로 전송합니다.
 2. **Moni 서버 (AWS EC2)**
-   - **Nginx**: 사용자 웹 브라우저의 정적 웹 페이지 요청을 수신 및 React 에셋을 서빙합니다.
+   - **Nginx**: 사용자 웹 브라우저의 요청을 수신하고 React 정적 에셋을 서빙합니다.
    - **Docker / Spring Boot**: 클라이언트 라이브러리로부터 전송된 메트릭을 수신·인증(API Key)하고, Amazon RDS(PostgreSQL)에 적재합니다.
    - **실시간 지표 스트리밍 (SSE) & REST API**: 프론트엔드 대시보드와 통신하여 실시간 지표 스트리밍 및 과거 이력 조회를 처리합니다.
 3. **사용자 브라우저**
-   - 웹 브라우저를 통해 실시간 인프라 상태 및 애플리케이션 메트릭을 시각화된 차트로 확인 및 모니터링합니다.
+   - 웹 브라우저를 통해 실시간 인프라 상태 및 애플리케이션 메트릭을 시각화된 차트로 모니터링합니다.
 
 ---
 
