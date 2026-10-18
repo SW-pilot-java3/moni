@@ -139,29 +139,7 @@ moni:
   collect-host-metrics: true                  # Node Exporter 지표 수집 여부 (기본값: true)
 ```
 
-애플리케이션 기동 시 백그라운드 데몬 스레드가 설정된 주기(`interval`)마다 지표를 수집하여 `POST {server-url}/api/v1/metrics` 엔드포인트로 전송합니다.
-
-## 기술 스택
-
-### 백엔드 (Backend API)
-- Java 21
-- Spring Boot 4.1.0
-- Spring Data JPA / Hibernate
-- Spring Security, JJWT
-- PostgreSQL
-- Caffeine Cache
-- SpringDoc OpenAPI (Swagger UI)
-
-### 프론트엔드 (Frontend Web)
-- React 19.2
-- TypeScript
-- Vite 8.2
-- TailwindCSS v4
-- Recharts 3.10
-- React Router 7.18
-
-### 클라이언트 라이브러리 (Starter)
-- `moni-spring-boot-starter` (Spring Boot 3.5.x, 4.x 호환)
+애플리케이션 기동 시 백그라운드 데몬 스레드가 설정된 주기마다 지표를 수집하여 Moni 백엔드 서버로 전송합니다.
 
 ## 실행 방법
 
