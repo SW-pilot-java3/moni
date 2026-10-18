@@ -130,7 +130,11 @@ public class InstanceService {
         getInstanceOwnedBy(instanceId, userId);
 
         List<InstanceRealtimeMetric> recentDesc = instanceRealtimeMetricRepository
-                .findAllByInstanceIdOrderByCollectedAtDesc(instanceId, PageRequest.of(0, DEFAULT_REALTIME_METRIC_LIMIT));
+                .findAllByInstanceIdOrderByCollectedAtDesc(instanceId, PageRequest.of(0, DEFAULT_REALTIME_METRIC_LIMIT + 1));
+
+        if (recentDesc.isEmpty()) {
+            return List.of();
+        }
 
         List<InstanceRealtimeMetric> metrics = new ArrayList<>(recentDesc);
         Collections.reverse(metrics);
@@ -145,7 +149,16 @@ public class InstanceService {
 
         List<InstanceRealtimeMetricResponse> responses = new ArrayList<>();
         InstanceRealtimeMetric previous = null;
-        for (InstanceRealtimeMetric current : metrics) {
+        int startIndex = 0;
+
+        // N + 1개(31개)가 모두 조회된 경우, 가장 오래된 31번째 데이터(index 0)는 baseline previous로만 사용
+        if (metrics.size() > DEFAULT_REALTIME_METRIC_LIMIT) {
+            previous = metrics.get(0);
+            startIndex = 1;
+        }
+
+        for (int i = startIndex; i < metrics.size(); i++) {
+            InstanceRealtimeMetric current = metrics.get(i);
             Double cpuUsagePct = previous == null
                     ? null
                     : CpuUsageCalculator.calculate(previous.getCpuMetrics(), current.getCpuMetrics());
