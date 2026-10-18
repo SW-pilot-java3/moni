@@ -99,7 +99,6 @@ export default function InstanceDetailView({
     getInstanceRealtimeMetrics(instance.instanceId)
       .then((res) => {
         setMetrics(res)
-        setStreamStatus((prev) => (prev === 'connected' ? 'connected' : 'connecting'))
       })
       .catch(() => {
         setStreamStatus('disconnected')
@@ -126,7 +125,9 @@ export default function InstanceDetailView({
           ].slice(-MAX_SERIES_POINTS),
         )
       },
-      undefined,
+      () => {
+        setStreamStatus('connected')
+      },
       () => {
         setStreamStatus('disconnected')
       },
