@@ -79,9 +79,11 @@ export default function Sidebar() {
       <div className="p-4 overflow-y-auto">
         {/* 서비스 로고 */}
         <Link to="/dashboard" className="flex items-center gap-2 px-2 py-3 mb-4">
-          <div className="h-8 w-8 rounded-lg bg-brand-500 flex items-center justify-center text-white font-bold shadow-sm">
-            M
-          </div>
+          <img
+            src="/favicon/favicon.svg"
+            alt="Moni Logo"
+            className="h-8 w-8 rounded-lg shadow-xs"
+          />
           <span className="text-xl font-bold text-slate-900 tracking-tight">Moni</span>
         </Link>
 
