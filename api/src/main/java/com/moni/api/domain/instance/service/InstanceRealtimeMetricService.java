@@ -18,14 +18,18 @@ import com.moni.api.domain.instance.repository.InstanceNetworkMetricsRepository;
 import com.moni.api.domain.instance.repository.InstanceRealtimeMetricRepository;
 import com.moni.api.domain.instance.repository.InstanceRepository;
 import com.moni.api.global.error.exception.CustomException;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-
+@Slf4j
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
@@ -37,6 +41,7 @@ public class InstanceRealtimeMetricService {
     private final InstanceDiskMetricsRepository instanceDiskMetricsRepository;
     private final InstanceFileSystemMetricRepository instanceFileSystemMetricRepository;
     private final InstanceNetworkMetricsRepository instanceNetworkMetricsRepository;
+    private final InstanceThresholdEvaluationService instanceThresholdEvaluationService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -62,11 +67,11 @@ public class InstanceRealtimeMetricService {
                 .swapFreeBytes(payload.swapFreeBytes())
                 .build();
 
-        InstanceRealtimeMetric previousMetric = instanceRealtimeMetricRepository
-                .findFirstByInstanceIdOrderByCollectedAtDesc(instanceId)
-                .orElse(null);
-        Double cpuUsagePct = CpuUsageCalculator.calculate(
-                previousMetric != null ? previousMetric.getCpuMetrics() : null, cpuMetrics);
+        Optional<InstanceRealtimeMetric> previousRealtimeMetric = instanceRealtimeMetricRepository
+                .findFirstByInstanceIdAndCollectedAtLessThanOrderByCollectedAtDesc(instanceId, request.collectedAt());
+        InstanceRealtimeMetric previousMetric = previousRealtimeMetric.orElse(null);
+        CpuMetrics previousCpuMetrics = previousMetric != null ? previousMetric.getCpuMetrics() : null;
+        Double cpuUsagePct = CpuUsageCalculator.calculate(previousCpuMetrics, cpuMetrics);
 
         InstanceRealtimeMetric metric = InstanceRealtimeMetric.builder()
                 .instance(instance)
@@ -75,7 +80,12 @@ public class InstanceRealtimeMetricService {
                 .memoryMetrics(memoryMetrics)
                 .build();
 
-        instanceRealtimeMetricRepository.save(metric);
+        try {
+            instanceRealtimeMetricRepository.save(metric);
+        } catch (DataIntegrityViolationException e) {
+            log.info("이미 처리된 메트릭 push - instanceId={}, collectedAt={}", instanceId, request.collectedAt());
+            return;
+        }
 
         for (InstanceRealtimeMetricCreateRequest.CoreCpu coreCpu : payload.cpus()) {
             InstanceCpuMetric cpuMetric = InstanceCpuMetric.builder()
@@ -104,6 +114,7 @@ public class InstanceRealtimeMetricService {
             currentDiskMetrics.add(instanceDiskMetricsRepository.save(diskMetric));
         }
 
+        List<InstanceFileSystemMetric> fileSystemMetrics = new ArrayList<>();
         for (InstanceRealtimeMetricCreateRequest.FileSystemMount fileSystemMount : payload.filesystems()) {
             InstanceFileSystemMetric fileSystemMetric = InstanceFileSystemMetric.builder()
                     .realtimeMetric(metric)
@@ -113,6 +124,7 @@ public class InstanceRealtimeMetricService {
                     .fsAvailBytes(fileSystemMount.fsAvailBytes())
                     .build();
             instanceFileSystemMetricRepository.save(fileSystemMetric);
+            fileSystemMetrics.add(fileSystemMetric);
         }
 
         List<InstanceNetworkMetric> currentNetworkMetrics = new ArrayList<>();
@@ -131,16 +143,26 @@ public class InstanceRealtimeMetricService {
 
         DiskUsageCalculator.Result diskUsage = DiskUsageCalculator.Result.EMPTY;
         NetworkUsageCalculator.Result networkUsage = NetworkUsageCalculator.Result.EMPTY;
+        List<InstanceDiskMetric> previousDiskMetrics = List.of();
+        List<InstanceNetworkMetric> previousNetworkMetrics = List.of();
+
         if (previousMetric != null) {
-            List<InstanceDiskMetric> previousDiskMetrics = instanceDiskMetricsRepository
+            previousDiskMetrics = instanceDiskMetricsRepository
                     .findAllByRealtimeMetricId(previousMetric.getId());
-            List<InstanceNetworkMetric> previousNetworkMetrics = instanceNetworkMetricsRepository
+            previousNetworkMetrics = instanceNetworkMetricsRepository
                     .findAllByRealtimeMetricId(previousMetric.getId());
+
             diskUsage = DiskUsageCalculator.calculate(
                     previousDiskMetrics, currentDiskMetrics, previousMetric.getCollectedAt(), request.collectedAt());
             networkUsage = NetworkUsageCalculator.calculate(
                     previousNetworkMetrics, currentNetworkMetrics, previousMetric.getCollectedAt(), request.collectedAt());
         }
+
+        Double diskLatencyMs = DiskLatencyCalculator.calculate(previousDiskMetrics, currentDiskMetrics);
+        Double netErrorRate = NetErrorRateCalculator.calculate(previousNetworkMetrics, currentNetworkMetrics);
+
+        instanceThresholdEvaluationService.evaluate(instanceId, request.collectedAt(), cpuUsagePct, memoryMetrics,
+                fileSystemMetrics, diskLatencyMs, netErrorRate);
 
         eventPublisher.publishEvent(new InstanceMetricStreamEvent(
                 instanceId, request.collectedAt(), cpuUsagePct, memoryMetrics.getMemAvailableBytes(),

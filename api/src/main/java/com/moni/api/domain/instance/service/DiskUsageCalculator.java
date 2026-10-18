@@ -1,7 +1,7 @@
 package com.moni.api.domain.instance.service;
 
 import com.moni.api.domain.instance.entity.InstanceDiskMetric;
-
+import com.moni.api.domain.instance.entity.InstanceFileSystemMetric;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -18,8 +18,43 @@ final class DiskUsageCalculator {
         static final Result EMPTY = new Result(null, null, null);
     }
 
-    static Result calculate(List<InstanceDiskMetric> previous, List<InstanceDiskMetric> current, LocalDateTime previousCollectedAt, LocalDateTime currentCollectedAt) {
+    /**
+     * 파일시스템 메트릭 목록으로부터 최대 디스크 점유율(%)을 계산한다.
+     */
+    static Double calculate(List<InstanceFileSystemMetric> filesystems) {
+        if (filesystems == null) {
+            return null;
+        }
+
+        Double maxUsagePct = null;
+
+        for (InstanceFileSystemMetric filesystem : filesystems) {
+            Long fsSizeBytes = filesystem.getFsSizeBytes();
+            Long fsAvailBytes = filesystem.getFsAvailBytes();
+
+            if (fsSizeBytes == null || fsSizeBytes <= 0 || fsAvailBytes == null) {
+                continue;
+            }
+
+            double usagePct = (1 - ((double) fsAvailBytes / fsSizeBytes)) * 100;
+            if (maxUsagePct == null || usagePct > maxUsagePct) {
+                maxUsagePct = usagePct;
+            }
+        }
+
+        return maxUsagePct;
+    }
+
+    /**
+     * 이전/현재 디스크 I/O 메트릭 목록과 수집 시점으로부터 초당 읽기/쓰기 바이트 및 디스크 점유율(%)을 계산한다.
+     */
+    static Result calculate(List<InstanceDiskMetric> previous, List<InstanceDiskMetric> current,
+                           LocalDateTime previousCollectedAt, LocalDateTime currentCollectedAt) {
         if (previous == null || previous.isEmpty() || current == null || current.isEmpty()) {
+            return Result.EMPTY;
+        }
+
+        if (previousCollectedAt == null || currentCollectedAt == null) {
             return Result.EMPTY;
         }
 

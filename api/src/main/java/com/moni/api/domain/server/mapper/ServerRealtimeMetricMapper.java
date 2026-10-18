@@ -39,6 +39,7 @@ public class ServerRealtimeMetricMapper {
                 .jvmHeapUsedBytes(payload.getJvmHeapUsedBytes())
                 .jvmHeapMaxBytes(payload.getJvmHeapMaxBytes())
                 .jvmOldGenUsedBytes(payload.getJvmOldGenUsedBytes())
+                .jvmOldGenMaxBytes(payload.getJvmOldGenMaxBytes())
                 .gcPauseSecondsCount(payload.getGcPauseSecondsCount())
                 .gcPauseSecondsSum(payload.getGcPauseSecondsSum())
                 .processUptimeSeconds(payload.getProcessUptimeSeconds())

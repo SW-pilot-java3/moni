@@ -20,6 +20,9 @@ public interface InstanceRealtimeMetricRepository extends JpaRepository<Instance
 
     Optional<InstanceRealtimeMetric> findFirstByInstanceIdOrderByCollectedAtDesc(Long instanceId);
 
+    Optional<InstanceRealtimeMetric> findFirstByInstanceIdAndCollectedAtLessThanOrderByCollectedAtDesc(
+            Long instanceId, LocalDateTime collectedAt);
+
     @Modifying
     @Query("DELETE FROM InstanceRealtimeMetric m WHERE m.collectedAt < :before")
     int deleteAllByCollectedAtBefore(@Param("before") LocalDateTime before);

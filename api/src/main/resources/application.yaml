@@ -25,3 +25,6 @@ spring:
       hibernate:
         format_sql: true
     show-sql: true
+
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY:}
